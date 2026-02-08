@@ -25,7 +25,6 @@ export const DashboardBuilderPage: React.FC = () => {
   const { data: dashboards, isLoading: loadingList } = useDashboards();
   const { data: dashboard, isLoading: loadingDashboard } = useDashboard(selectedId);
   const createDashboard = useCreateDashboard();
-  const updateDashboard = useUpdateDashboard();
   const deleteDashboard = useDeleteDashboard();
   const addWidgetMut = useAddWidget();
   const updateWidgetMut = useUpdateWidget();
