@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../client';
-import type { Task, TaskComment } from '@nit-wms/shared/types';
+import type { Task, TaskComment } from '@nit-scs/shared/types';
 
 interface ApiResponse<T> { success: boolean; data: T; meta?: { page: number; pageSize: number; total: number; totalPages: number } }
 

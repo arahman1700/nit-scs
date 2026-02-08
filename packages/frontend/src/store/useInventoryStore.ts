@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { create } from 'zustand';
-import type { InventoryLevel, StockReservation, InventoryLot } from '@nit-wms/shared/types';
+import type { InventoryLevel, StockReservation, InventoryLot } from '@nit-scs/shared/types';
 
 interface InventoryState {
   levels: InventoryLevel[];

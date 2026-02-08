@@ -9,7 +9,7 @@ export const apiClient = axios.create({
 
 // Request interceptor: attach JWT token
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('nit_wms_token');
+  const token = localStorage.getItem('nit_scs_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -26,21 +26,21 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('nit_wms_refresh_token');
+        const refreshToken = localStorage.getItem('nit_scs_refresh_token');
         if (!refreshToken) throw new Error('No refresh token');
 
         const { data } = await axios.post(`${API_URL}/auth/refresh`, {
           refreshToken,
         });
 
-        localStorage.setItem('nit_wms_token', data.data.accessToken);
-        localStorage.setItem('nit_wms_refresh_token', data.data.refreshToken);
+        localStorage.setItem('nit_scs_token', data.data.accessToken);
+        localStorage.setItem('nit_scs_refresh_token', data.data.refreshToken);
 
         originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
         return apiClient(originalRequest);
       } catch {
-        localStorage.removeItem('nit_wms_token');
-        localStorage.removeItem('nit_wms_refresh_token');
+        localStorage.removeItem('nit_scs_token');
+        localStorage.removeItem('nit_scs_refresh_token');
         window.location.href = '/login';
         return Promise.reject(error);
       }

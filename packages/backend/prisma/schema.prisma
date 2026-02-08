@@ -1,5 +1,5 @@
 // ============================================================================
-// NIT WMS - Warehouse Management System
+// NIT Supply Chain System
 // Prisma Schema (53 models)
 // ============================================================================
 // Company:   Nesma Infrastructure & Technology (NIT) - Saudi Arabia
@@ -22,7 +22,7 @@ datasource db {
 // SECTION 1: REFERENCE / LOOKUP TABLES (8 models)
 // ############################################################################
 
-/// المناطق الإدارية / Administrative regions (Saudi Arabia)
+/// Administrative regions (Saudi Arabia)
 model Region {
   id           String  @id @default(uuid()) @db.Uuid
   regionName   String  @unique @map("region_name") @db.VarChar(100)
@@ -36,7 +36,7 @@ model Region {
   @@map("regions")
 }
 
-/// المدن / Cities within regions
+/// Cities within regions
 model City {
   id         String  @id @default(uuid()) @db.Uuid
   cityName   String  @map("city_name") @db.VarChar(100)
@@ -53,7 +53,7 @@ model City {
   @@map("cities")
 }
 
-/// الموانئ / Ports of entry (sea, air, land)
+/// Ports of entry (sea, air, land)
 model Port {
   id       String  @id @default(uuid()) @db.Uuid
   portName String  @map("port_name") @db.VarChar(200)
@@ -69,7 +69,7 @@ model Port {
   @@map("ports")
 }
 
-/// وحدات القياس / Units of measure (EA, KG, M, etc.)
+/// Units of measure (EA, KG, M, etc.)
 model UnitOfMeasure {
   id        String  @id @default(uuid()) @db.Uuid
   uomCode   String  @unique @map("uom_code") @db.VarChar(20)
@@ -91,7 +91,7 @@ model UnitOfMeasure {
   @@map("units_of_measure")
 }
 
-/// أنواع المستودعات / Warehouse type classifications
+/// Warehouse type classifications
 model WarehouseType {
   id          String  @id @default(uuid()) @db.Uuid
   typeName    String  @unique @map("type_name") @db.VarChar(50)
@@ -104,7 +104,7 @@ model WarehouseType {
   @@map("warehouse_types")
 }
 
-/// تصنيفات المعدات / Equipment category groupings
+/// Equipment category groupings
 model EquipmentCategory {
   id             String  @id @default(uuid()) @db.Uuid
   categoryName   String  @unique @map("category_name") @db.VarChar(100)
@@ -116,7 +116,7 @@ model EquipmentCategory {
   @@map("equipment_categories")
 }
 
-/// أنواع المعدات / Equipment type definitions
+/// Equipment type definitions
 model EquipmentType {
   id         String  @id @default(uuid()) @db.Uuid
   typeName   String  @unique @map("type_name") @db.VarChar(100)
@@ -133,15 +133,15 @@ model EquipmentType {
   @@map("equipment_types")
 }
 
-/// مسارات الموافقة / Approval workflow rules per document type and amount threshold
+/// Approval workflow rules per document type and amount threshold
 model ApprovalWorkflow {
   id           String   @id @default(uuid()) @db.Uuid
-  /// نوع المستند (mirv/jo/etc) / Document type code
+  /// Document type code
   documentType String   @map("document_type") @db.VarChar(30)
   minAmount    Decimal  @map("min_amount") @db.Decimal(15, 2)
   maxAmount    Decimal? @map("max_amount") @db.Decimal(15, 2)
   approverRole String   @map("approver_role") @db.VarChar(50)
-  /// ساعات SLA / Maximum hours for approval SLA
+  /// Maximum hours for approval SLA
   slaHours     Int      @map("sla_hours")
 
   @@map("approval_workflows")
@@ -151,7 +151,7 @@ model ApprovalWorkflow {
 // SECTION 2: CORE MASTER TABLES (8 models)
 // ############################################################################
 
-/// الكيانات / Legal entities within Nesma group
+/// Legal entities within Nesma group
 model Entity {
   id             String   @id @default(uuid()) @db.Uuid
   entityCode     String   @unique @map("entity_code") @db.VarChar(20)
@@ -174,7 +174,7 @@ model Entity {
   @@map("entities")
 }
 
-/// المشاريع / Construction projects and sites
+/// Construction projects and sites
 model Project {
   id               String    @id @default(uuid()) @db.Uuid
   projectCode      String    @unique @map("project_code") @db.VarChar(50)
@@ -220,10 +220,10 @@ model Project {
   @@map("projects")
 }
 
-/// الموظفين / System users and employees
+/// System users and employees
 model Employee {
   id                  String    @id @default(uuid()) @db.Uuid
-  /// الرقم الوظيفي / HR employee ID
+  /// HR employee ID
   employeeIdNumber    String    @unique @map("employee_id_number") @db.VarChar(20)
   fullName            String    @map("full_name") @db.VarChar(200)
   fullNameAr          String?   @map("full_name_ar") @db.VarChar(200)
@@ -239,7 +239,7 @@ model Employee {
   managerId           String?   @map("manager_id") @db.Uuid
   isActive            Boolean   @default(true) @map("is_active")
   hireDate            DateTime? @map("hire_date") @db.Date
-  /// كلمة المرور المشفرة / Hashed password (never store plain text)
+  /// Hashed password (never store plain text)
   passwordHash        String?   @map("password_hash") @db.VarChar(500)
   lastLogin           DateTime? @map("last_login") @db.Timestamptz
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -316,22 +316,22 @@ model Employee {
   @@map("employees")
 }
 
-/// الموردين / Suppliers, vendors, and freight forwarders
+/// Suppliers, vendors, and freight forwarders
 model Supplier {
   id             String   @id @default(uuid()) @db.Uuid
   supplierCode   String   @unique @map("supplier_code") @db.VarChar(50)
   supplierName   String   @map("supplier_name") @db.VarChar(300)
   supplierNameAr String?  @map("supplier_name_ar") @db.VarChar(300)
-  /// أنواع المورد / Supplier type tags (array)
+  /// Supplier type tags (array)
   types          String[] @db.VarChar(200)
   contactPerson  String?  @map("contact_person") @db.VarChar(200)
   phone          String?  @db.VarChar(20)
   email          String?  @db.VarChar(200)
   address        String?
   cityId         String?  @map("city_id") @db.Uuid
-  /// رقم السجل التجاري / Commercial registration number
+  /// Commercial registration number
   crNumber       String?  @map("cr_number") @db.VarChar(50)
-  /// الرقم الضريبي / VAT registration number
+  /// VAT registration number
   vatNumber      String?  @map("vat_number") @db.VarChar(50)
   /// CHECK: rating BETWEEN 1 AND 5
   rating         Int?     @db.SmallInt
@@ -356,7 +356,7 @@ model Supplier {
   @@map("suppliers")
 }
 
-/// المستودعات / Warehouse and storage locations
+/// Warehouse and storage locations
 model Warehouse {
   id              String   @id @default(uuid()) @db.Uuid
   warehouseCode   String   @unique @map("warehouse_code") @db.VarChar(50)
@@ -402,7 +402,7 @@ model Warehouse {
   @@map("warehouses")
 }
 
-/// الأصناف / Material and item master catalog
+/// Material and item master catalog
 model Item {
   id                String   @id @default(uuid()) @db.Uuid
   itemCode          String   @unique @map("item_code") @db.VarChar(50)
@@ -443,7 +443,7 @@ model Item {
   @@map("items")
 }
 
-/// المولدات / Generator asset register
+/// Generator asset register
 model Generator {
   id                   String    @id @default(uuid()) @db.Uuid
   generatorCode        String    @unique @map("generator_code") @db.VarChar(50)
@@ -478,7 +478,7 @@ model Generator {
   @@map("generators")
 }
 
-/// أسطول المعدات / Vehicle and heavy equipment fleet
+/// Vehicle and heavy equipment fleet
 model EquipmentFleet {
   id                  String    @id @default(uuid()) @db.Uuid
   vehicleCode         String    @unique @map("vehicle_code") @db.VarChar(50)
@@ -505,7 +505,7 @@ model EquipmentFleet {
 // SECTION 3: MATERIAL MANAGEMENT TABLES (15 models)
 // ############################################################################
 
-/// سندات استلام المواد / Material Receiving Report Voucher (MRRV)
+/// Material Receiving Report Voucher (MRRV)
 model Mrrv {
   id             String    @id @default(uuid()) @db.Uuid
   mrrvNumber     String    @unique @map("mrrv_number") @db.VarChar(20)
@@ -547,7 +547,7 @@ model Mrrv {
   @@map("mrrv")
 }
 
-/// بنود سند الاستلام / MRRV line items
+/// MRRV line items
 model MrrvLine {
   id              String    @id @default(uuid()) @db.Uuid
   mrrvId          String    @map("mrrv_id") @db.Uuid
@@ -576,7 +576,7 @@ model MrrvLine {
   @@map("mrrv_lines")
 }
 
-/// طلبات فحص المواد / Request for Inspection of Materials (RFIM)
+/// Request for Inspection of Materials (RFIM)
 model Rfim {
   id             String    @id @default(uuid()) @db.Uuid
   rfimNumber     String    @unique @map("rfim_number") @db.VarChar(20)
@@ -599,7 +599,7 @@ model Rfim {
   @@map("rfim")
 }
 
-/// تقارير النقص والتلف / Over/Short/Damage reports linked to MRRVs
+/// Over/Short/Damage reports linked to MRRVs
 model OsdReport {
   id               String    @id @default(uuid()) @db.Uuid
   osdNumber        String    @unique @map("osd_number") @db.VarChar(20)
@@ -608,7 +608,7 @@ model OsdReport {
   supplierId       String?   @map("supplier_id") @db.Uuid
   warehouseId      String?   @map("warehouse_id") @db.Uuid
   reportDate       DateTime  @map("report_date") @db.Date
-  /// أنواع التقرير / OSD type flags (over/short/damage) as VARCHAR(50)[] array
+  /// OSD type flags (over/short/damage) as VARCHAR(50)[] array
   reportTypes      String[]  @map("report_types") @db.VarChar(50)
   /// CHECK: status IN ('draft', 'under_review', 'claim_sent', 'awaiting_response', 'negotiating', 'resolved', 'closed')
   status           String    @default("draft") @map("status") @db.VarChar(30)
@@ -639,7 +639,7 @@ model OsdReport {
   @@map("osd_reports")
 }
 
-/// بنود تقارير النقص والتلف / OSD report line items
+/// OSD report line items
 model OsdLine {
   id          String   @id @default(uuid()) @db.Uuid
   osdId       String   @map("osd_id") @db.Uuid
@@ -663,7 +663,7 @@ model OsdLine {
   @@map("osd_lines")
 }
 
-/// سندات صرف المواد / Material Issue Report Voucher (MIRV)
+/// Material Issue Report Voucher (MIRV)
 model Mirv {
   id                String    @id @default(uuid()) @db.Uuid
   mirvNumber        String    @unique @map("mirv_number") @db.VarChar(20)
@@ -714,7 +714,7 @@ model Mirv {
   @@map("mirv")
 }
 
-/// بنود سند الصرف / MIRV line items
+/// MIRV line items
 model MirvLine {
   id              String   @id @default(uuid()) @db.Uuid
   mirvId          String   @map("mirv_id") @db.Uuid
@@ -738,7 +738,7 @@ model MirvLine {
   @@map("mirv_lines")
 }
 
-/// سندات إرجاع المواد / Material Return Voucher (MRV)
+/// Material Return Voucher (MRV)
 model Mrv {
   id              String    @id @default(uuid()) @db.Uuid
   mrvNumber       String    @unique @map("mrv_number") @db.VarChar(20)
@@ -775,7 +775,7 @@ model Mrv {
   @@map("mrv")
 }
 
-/// بنود سند الإرجاع / MRV line items
+/// MRV line items
 model MrvLine {
   id          String  @id @default(uuid()) @db.Uuid
   mrvId       String  @map("mrv_id") @db.Uuid
@@ -795,7 +795,7 @@ model MrvLine {
   @@map("mrv_lines")
 }
 
-/// تصاريح البوابة / Gate pass for material entry/exit
+/// Gate pass for material entry/exit
 model GatePass {
   id              String    @id @default(uuid()) @db.Uuid
   gatePassNumber  String    @unique @map("gate_pass_number") @db.VarChar(20)
@@ -835,7 +835,7 @@ model GatePass {
   @@map("gate_passes")
 }
 
-/// بنود تصريح البوابة / Gate pass line items
+/// Gate pass line items
 model GatePassItem {
   id          String  @id @default(uuid()) @db.Uuid
   gatePassId  String  @map("gate_pass_id") @db.Uuid
@@ -853,7 +853,7 @@ model GatePassItem {
   @@map("gate_pass_items")
 }
 
-/// طلبات المواد / Material Requisition Form (MRF)
+/// Material Requisition Form (MRF)
 model MaterialRequisition {
   id                  String    @id @default(uuid()) @db.Uuid
   mrfNumber           String    @unique @map("mrf_number") @db.VarChar(20)
@@ -895,7 +895,7 @@ model MaterialRequisition {
   @@map("material_requisitions")
 }
 
-/// بنود طلبات المواد / MRF line items
+/// MRF line items
 model MrfLine {
   id              String   @id @default(uuid()) @db.Uuid
   mrfId           String   @map("mrf_id") @db.Uuid
@@ -923,7 +923,7 @@ model MrfLine {
   @@map("mrf_lines")
 }
 
-/// تحويلات المخزون / Inter-warehouse and inter-project stock transfers
+/// Inter-warehouse and inter-project stock transfers
 model StockTransfer {
   id                String    @id @default(uuid()) @db.Uuid
   transferNumber    String    @unique @map("transfer_number") @db.VarChar(20)
@@ -965,7 +965,7 @@ model StockTransfer {
   @@map("stock_transfers")
 }
 
-/// بنود تحويل المخزون / Stock transfer line items
+/// Stock transfer line items
 model StockTransferLine {
   id         String  @id @default(uuid()) @db.Uuid
   transferId String  @map("transfer_id") @db.Uuid
@@ -987,7 +987,7 @@ model StockTransferLine {
 // SECTION 4: JOB ORDER TABLES (9 models)
 // ############################################################################
 
-/// أوامر العمل / Job Orders base table - supports 7 types via subtype tables
+/// Job Orders base table - supports 7 types via subtype tables
 model JobOrder {
   id             String    @id @default(uuid()) @db.Uuid
   joNumber       String    @unique @map("jo_number") @db.VarChar(20)
@@ -1040,7 +1040,7 @@ model JobOrder {
   @@map("job_orders")
 }
 
-/// تفاصيل النقل / Transport-type job order details
+/// Transport-type job order details
 model JoTransportDetail {
   id                      String   @id @default(uuid()) @db.Uuid
   jobOrderId              String   @unique @map("job_order_id") @db.Uuid
@@ -1067,7 +1067,7 @@ model JoTransportDetail {
   @@map("jo_transport_details")
 }
 
-/// تفاصيل التأجير / Rental-type job order details (monthly and daily)
+/// Rental-type job order details (monthly and daily)
 model JoRentalDetail {
   id               String   @id @default(uuid()) @db.Uuid
   jobOrderId       String   @unique @map("job_order_id") @db.Uuid
@@ -1085,7 +1085,7 @@ model JoRentalDetail {
   @@map("jo_rental_details")
 }
 
-/// تفاصيل المولدات / Generator rental and maintenance job order details
+/// Generator rental and maintenance job order details
 model JoGeneratorDetail {
   id               String    @id @default(uuid()) @db.Uuid
   jobOrderId       String    @unique @map("job_order_id") @db.Uuid
@@ -1103,7 +1103,7 @@ model JoGeneratorDetail {
   @@map("jo_generator_details")
 }
 
-/// تفاصيل الخردة / Scrap disposal job order details
+/// Scrap disposal job order details
 model JoScrapDetail {
   id               String   @id @default(uuid()) @db.Uuid
   jobOrderId       String   @unique @map("job_order_id") @db.Uuid
@@ -1119,7 +1119,7 @@ model JoScrapDetail {
   @@map("jo_scrap_details")
 }
 
-/// بنود المعدات / Equipment request line items for job orders
+/// Equipment request line items for job orders
 model JoEquipmentLine {
   id              String   @id @default(uuid()) @db.Uuid
   jobOrderId      String   @map("job_order_id") @db.Uuid
@@ -1138,7 +1138,7 @@ model JoEquipmentLine {
   @@map("jo_equipment_lines")
 }
 
-/// تتبع SLA / Service Level Agreement tracking for job orders
+/// Service Level Agreement tracking for job orders
 model JoSlaTracking {
   id               String    @id @default(uuid()) @db.Uuid
   jobOrderId       String    @unique @map("job_order_id") @db.Uuid
@@ -1156,7 +1156,7 @@ model JoSlaTracking {
   @@map("jo_sla_tracking")
 }
 
-/// الموافقات / Job order approval records
+/// Job order approval records
 model JoApproval {
   id           String    @id @default(uuid()) @db.Uuid
   jobOrderId   String    @map("job_order_id") @db.Uuid
@@ -1174,7 +1174,7 @@ model JoApproval {
   @@map("jo_approvals")
 }
 
-/// المدفوعات / Job order invoice and payment tracking
+/// Job order invoice and payment tracking
 model JoPayment {
   id                  String    @id @default(uuid()) @db.Uuid
   jobOrderId          String    @map("job_order_id") @db.Uuid
@@ -1200,7 +1200,7 @@ model JoPayment {
 // SECTION 5: INVENTORY TABLES (4 models)
 // ############################################################################
 
-/// مستويات المخزون / Real-time inventory quantities per item per warehouse
+/// Real-time inventory quantities per item per warehouse
 model InventoryLevel {
   id               String    @id @default(uuid()) @db.Uuid
   itemId           String    @map("item_id") @db.Uuid
@@ -1224,7 +1224,7 @@ model InventoryLevel {
   @@map("inventory_levels")
 }
 
-/// دُفعات المخزون / Inventory lot tracking for FIFO costing and expiry management
+/// Inventory lot tracking for FIFO costing and expiry management
 model InventoryLot {
   id           String    @id @default(uuid()) @db.Uuid
   lotNumber    String    @unique @map("lot_number") @db.VarChar(20)
@@ -1259,7 +1259,7 @@ model InventoryLot {
   @@map("inventory_lots")
 }
 
-/// سجل استهلاك الدُفعات / Lot consumption log for FIFO tracking
+/// Lot consumption log for FIFO tracking
 model LotConsumption {
   id              String   @id @default(uuid()) @db.Uuid
   lotId           String   @map("lot_id") @db.Uuid
@@ -1276,7 +1276,7 @@ model LotConsumption {
   @@map("lot_consumptions")
 }
 
-/// المواد المتبقية / Leftover materials from projects requiring disposition
+/// Leftover materials from projects requiring disposition
 model LeftoverMaterial {
   id             String   @id @default(uuid()) @db.Uuid
   leftoverNumber String   @unique @map("leftover_number") @db.VarChar(20)
@@ -1317,7 +1317,7 @@ model LeftoverMaterial {
 // SECTION 6: SHIPPING & CUSTOMS TABLES (3 models)
 // ############################################################################
 
-/// الشحنات / International and domestic shipment tracking
+/// International and domestic shipment tracking
 model Shipment {
   id                     String    @id @default(uuid()) @db.Uuid
   shipmentNumber         String    @unique @map("shipment_number") @db.VarChar(20)
@@ -1371,7 +1371,7 @@ model Shipment {
   @@map("shipments")
 }
 
-/// تتبع التخليص الجمركي / Customs clearance stage tracking per shipment
+/// Customs clearance stage tracking per shipment
 model CustomsTracking {
   id                 String    @id @default(uuid()) @db.Uuid
   shipmentId         String    @map("shipment_id") @db.Uuid
@@ -1400,7 +1400,7 @@ model CustomsTracking {
   @@map("customs_tracking")
 }
 
-/// بنود الشحنات / Shipment line items (packing list)
+/// Shipment line items (packing list)
 model ShipmentLine {
   id          String   @id @default(uuid()) @db.Uuid
   shipmentId  String   @map("shipment_id") @db.Uuid
@@ -1409,7 +1409,7 @@ model ShipmentLine {
   quantity    Decimal  @db.Decimal(12, 3)
   uomId       String?  @map("uom_id") @db.Uuid
   unitValue   Decimal? @map("unit_value") @db.Decimal(15, 2)
-  /// رمز النظام المنسق / Harmonized System tariff code
+  /// Harmonized System tariff code
   hsCode      String?  @map("hs_code") @db.VarChar(20)
 
   // Relations
@@ -1424,7 +1424,7 @@ model ShipmentLine {
 // SECTION 7: FINANCE TABLES (2 models)
 // ############################################################################
 
-/// أسعار معدات الموردين / Supplier rate cards for equipment rental
+/// Supplier rate cards for equipment rental
 model SupplierEquipmentRate {
   id                    String    @id @default(uuid()) @db.Uuid
   supplierId            String    @map("supplier_id") @db.Uuid
@@ -1443,7 +1443,7 @@ model SupplierEquipmentRate {
   @@map("supplier_equipment_rates")
 }
 
-/// قيود الإهلاك / Generator depreciation journal entries
+/// Generator depreciation journal entries
 model DepreciationEntry {
   id           String   @id @default(uuid()) @db.Uuid
   generatorId  String   @map("generator_id") @db.Uuid
@@ -1467,7 +1467,7 @@ model DepreciationEntry {
 // SECTION 8: SYSTEM TABLES (3 models)
 // ############################################################################
 
-/// عدادات المستندات / Sequential document number generators per type per year
+/// Sequential document number generators per type per year
 model DocumentCounter {
   id           String @id @default(uuid()) @db.Uuid
   documentType String @map("document_type") @db.VarChar(30)
@@ -1479,7 +1479,7 @@ model DocumentCounter {
   @@map("document_counters")
 }
 
-/// سجل التدقيق / Comprehensive audit trail for all data changes
+/// Comprehensive audit trail for all data changes
 model AuditLog {
   id            String   @id @default(uuid()) @db.Uuid
   tableName     String   @map("table_name") @db.VarChar(50)
@@ -1500,7 +1500,7 @@ model AuditLog {
   @@map("audit_log")
 }
 
-/// الإشعارات / User notification messages
+/// User notification messages
 model Notification {
   id               String   @id @default(uuid()) @db.Uuid
   recipientId      String   @map("recipient_id") @db.Uuid
@@ -1524,7 +1524,7 @@ model Notification {
 // SECTION 9: TASK & DOCUMENT MANAGEMENT (3 models)
 // ############################################################################
 
-/// المهام / Internal team tasks with assignment and tracking
+/// Internal team tasks with assignment and tracking
 model Task {
   id          String    @id @default(uuid()) @db.Uuid
   title       String    @db.VarChar(300)
@@ -1555,7 +1555,7 @@ model Task {
   @@map("tasks")
 }
 
-/// تعليقات المهام / Comments on tasks
+/// Comments on tasks
 model TaskComment {
   id        String   @id @default(uuid()) @db.Uuid
   taskId    String   @map("task_id") @db.Uuid
@@ -1570,7 +1570,7 @@ model TaskComment {
   @@map("task_comments")
 }
 
-/// مستندات الشركة / Company-level documents (policies, SOPs, templates)
+/// Company-level documents (policies, SOPs, templates)
 model CompanyDocument {
   id          String   @id @default(uuid()) @db.Uuid
   title       String   @db.VarChar(300)

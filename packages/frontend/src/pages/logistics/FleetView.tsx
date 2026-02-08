@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { useJobOrderList } from '@/api/hooks/useJobOrders';
 import { useEmployees } from '@/api/hooks/useMasterData';
-import { JobStatus } from '@nit-wms/shared/types';
-import type { JobOrder, Employee } from '@nit-wms/shared/types';
+import { JobStatus } from '@nit-scs/shared/types';
+import type { JobOrder, Employee } from '@nit-scs/shared/types';
 import { Truck, CheckCircle, Package, Wrench, MapPin } from 'lucide-react';
 
 interface FleetItem {

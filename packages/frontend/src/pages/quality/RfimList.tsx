@@ -15,7 +15,7 @@ import {
   X
 } from 'lucide-react';
 import { useRfimList } from '@/api/hooks/useRfim';
-import type { RFIM } from '@nit-wms/shared/types';
+import type { RFIM } from '@nit-scs/shared/types';
 
 // Custom Badge for Inspection Status
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useSuppliers } from '@/api/hooks/useMasterData';
-import type { Supplier } from '@nit-wms/shared/types';
+import type { Supplier } from '@nit-scs/shared/types';
 import { Users, CheckCircle, MapPin, Star, Search } from 'lucide-react';
 
 export const SupplierView: React.FC = () => {

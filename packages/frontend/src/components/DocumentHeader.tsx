@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Printer } from 'lucide-react';
-import { getStatusBgColor } from '@nit-wms/shared/formatters';
+import { getStatusBgColor } from '@nit-scs/shared/formatters';
 
 interface DocumentHeaderProps {
   documentNumber: string;

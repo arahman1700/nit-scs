@@ -19,8 +19,8 @@ import {
   useCancelJobOrder,
   useResumeJobOrder,
 } from '@/api/hooks/useJobOrders';
-import { JobStatus } from '@nit-wms/shared/types';
-import type { JobOrder } from '@nit-wms/shared/types';
+import { JobStatus } from '@nit-scs/shared/types';
+import type { JobOrder } from '@nit-scs/shared/types';
 import { toast } from '@/components/Toaster';
 import {
   Truck,

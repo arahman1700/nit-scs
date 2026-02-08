@@ -4,8 +4,8 @@ import { PlusCircle, Clock, CheckCircle, XCircle, ArrowRight, FileText, Truck, S
 import { useProjects, useInventory } from '@/api/hooks/useMasterData';
 import { useMirvList } from '@/api/hooks/useMirv';
 import { useJobOrderList } from '@/api/hooks/useJobOrders';
-import { JobStatus } from '@nit-wms/shared/types';
-import type { MIRV, JobOrder, InventoryItem, Project } from '@nit-wms/shared/types';
+import { JobStatus } from '@nit-scs/shared/types';
+import type { MIRV, JobOrder, InventoryItem, Project } from '@nit-scs/shared/types';
 import { useParams, useNavigate } from 'react-router-dom';
 
 // The logged-in engineer (simulated)

@@ -49,15 +49,7 @@ app.use('/api', rateLimiter(200, 60_000));
 
 // ── Health Check ───────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
-  res.json({
-    success: true,
-    data: {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      version: '1.0.0',
-      uptime: process.uptime(),
-    },
-  });
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // ── Routes ─────────────────────────────────────────────────────────────
@@ -90,6 +82,16 @@ app.set('io', io);
 
 // ── Error Handler (must be last) ───────────────────────────────────────
 app.use(errorHandler);
+
+// ── Production: Serve Frontend ────────────────────────────────────────
+if (process.env.NODE_ENV === 'production') {
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const frontendDist = join(__dirname, '../../frontend/dist');
+  app.use(express.static(frontendDist));
+  app.get('*', (_req, res) => {
+    res.sendFile('index.html', { root: frontendDist });
+  });
+}
 
 // ── Start Server ───────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '4000', 10);

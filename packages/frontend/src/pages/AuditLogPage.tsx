@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { FileText, Search, Download, ChevronRight } from 'lucide-react';
 import { useAuditLogs } from '@/api/hooks';
-import { formatRelativeTime } from '@nit-wms/shared/formatters';
+import { formatRelativeTime } from '@nit-scs/shared/formatters';
 
 const ACTION_COLORS: Record<string, string> = {
   create: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',

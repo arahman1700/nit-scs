@@ -18,7 +18,7 @@ import {
 import { useProjects, useWarehouses } from '@/api/hooks/useMasterData';
 import { generateReportPdf } from '@/utils/pdfExport';
 import type { ReportPdfOptions } from '@/utils/pdfExport';
-import { formatCurrency } from '@nit-wms/shared/formatters';
+import { formatCurrency } from '@nit-scs/shared/formatters';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 

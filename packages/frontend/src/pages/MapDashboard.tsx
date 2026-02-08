@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useWarehouses, useProjects } from '@/api/hooks';
-import type { Warehouse, Project } from '@nit-wms/shared/types';
+import type { Warehouse, Project } from '@nit-scs/shared/types';
 import { Filter, Layers, Maximize, Search, Navigation, Loader2 } from 'lucide-react';
 
 declare global {

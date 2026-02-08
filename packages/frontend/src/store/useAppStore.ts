@@ -4,8 +4,8 @@
 // ============================================================================
 
 import { create } from 'zustand';
-import type { User, Notification } from '@nit-wms/shared/types';
-import { UserRole } from '@nit-wms/shared/types';
+import type { User, Notification } from '@nit-scs/shared/types';
+import { UserRole } from '@nit-scs/shared/types';
 
 interface AppState {
   // Auth (managed by login API response)
@@ -36,12 +36,12 @@ export const useAppStore = create<AppState>((set) => ({
   token: null,
   isAuthenticated: false,
   setAuth: (user: User, token: string) => {
-    localStorage.setItem('nit_wms_token', token);
+    localStorage.setItem('nit_scs_token', token);
     set({ user, token, isAuthenticated: true });
   },
   clearAuth: () => {
-    localStorage.removeItem('nit_wms_token');
-    localStorage.removeItem('nit_wms_refresh_token');
+    localStorage.removeItem('nit_scs_token');
+    localStorage.removeItem('nit_scs_refresh_token');
     set({ user: null, token: null, isAuthenticated: false });
   },
 

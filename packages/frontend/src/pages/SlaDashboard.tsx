@@ -4,7 +4,7 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Ba
 import { Download, Filter, Calendar, CheckCircle, Clock, AlertOctagon, TrendingUp } from 'lucide-react';
 import { useJobOrderList } from '@/api/hooks/useJobOrders';
 import { useProjects } from '@/api/hooks/useMasterData';
-import type { Project } from '@nit-wms/shared/types';
+import type { Project } from '@nit-scs/shared/types';
 
 export const SlaDashboard: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState('All');

@@ -8,7 +8,7 @@ import { useMrrvList } from '@/api/hooks/useMrrv';
 import { useSLACompliance } from '@/api/hooks/useDashboard';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import type { JobOrder } from '@nit-wms/shared/types';
+import type { JobOrder } from '@nit-scs/shared/types';
 
 type LogTab = 'overview' | 'jobs' | 'shipments' | 'gate-passes' | 'customs' | 'receiving';
 const CHART_COLORS = ['#2E3192', '#80D1E9', '#4CAF50', '#FF9800', '#F44336', '#9C27B0', '#00BCD4'];

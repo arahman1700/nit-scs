@@ -9,8 +9,8 @@ import {
   useInventorySummary, useWarehouses, useInventory,
   useGatePasses, useStockTransfers,
 } from '@/api/hooks';
-import type { InventoryItem } from '@nit-wms/shared/types';
-import type { Warehouse as WarehouseType } from '@nit-wms/shared/types';
+import type { InventoryItem } from '@nit-scs/shared/types';
+import type { Warehouse as WarehouseType } from '@nit-scs/shared/types';
 
 const InventoryDashboard = React.lazy(() =>
   import('@/pages/warehouse/InventoryDashboard').then(m => ({ default: m.InventoryDashboard })),

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Plus, Trash2, Search, AlertTriangle } from 'lucide-react';
-import type { VoucherLineItem, MaterialCatalogItem } from '@nit-wms/shared/types';
+import type { VoucherLineItem, MaterialCatalogItem } from '@nit-scs/shared/types';
 import { useItems, useUoms } from '@/api/hooks/useMasterData';
 import { useInventoryStore } from '@/store/useInventoryStore';
 

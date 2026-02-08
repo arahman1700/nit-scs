@@ -1,8 +1,8 @@
 
 import React from 'react';
 import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
-import type { ApprovalChain, ApprovalStep } from '@nit-wms/shared/types';
-import { formatRelativeTime } from '@nit-wms/shared/formatters';
+import type { ApprovalChain, ApprovalStep } from '@nit-scs/shared/types';
+import { formatRelativeTime } from '@nit-scs/shared/formatters';
 
 interface ApprovalWorkflowProps {
   chain: ApprovalChain;

@@ -8,7 +8,7 @@ import { apiClient } from '../client';
 import type {
   Project, Supplier, Employee, Warehouse, Generator,
   EquipmentFleet, SupplierRate, InventoryItem,
-} from '@nit-wms/shared/types';
+} from '@nit-scs/shared/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

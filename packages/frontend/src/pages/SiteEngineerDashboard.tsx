@@ -6,9 +6,9 @@ import { useJobOrderList } from '@/api/hooks/useJobOrders';
 import { useMrfList } from '@/api/hooks/useMrf';
 import { useProjects, useInventory } from '@/api/hooks/useMasterData';
 import { useParams, useNavigate } from 'react-router-dom';
-import { formatCurrency } from '@nit-wms/shared/formatters';
-import { JobStatus } from '@nit-wms/shared/types';
-import type { MIRV, JobOrder, Project, InventoryItem } from '@nit-wms/shared/types';
+import { formatCurrency } from '@nit-scs/shared/formatters';
+import { JobStatus } from '@nit-scs/shared/types';
+import type { MIRV, JobOrder, Project, InventoryItem } from '@nit-scs/shared/types';
 
 type SETab = 'dashboard' | 'new-request' | 'my-requests' | 'my-project' | 'site-inventory';
 

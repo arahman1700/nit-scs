@@ -1,10 +1,9 @@
 // ============================================================================
 // Generic Resource Data Hook
-// TODO: Replace with React Query hooks in Phase 8
 // ============================================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import type { TableFilters, PaginationMeta } from '@nit-wms/shared/types';
+import type { TableFilters, PaginationMeta } from '@nit-scs/shared/types';
 
 interface UseResourceDataOptions<T> {
   service: {

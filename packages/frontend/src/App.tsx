@@ -7,8 +7,8 @@ import { Header } from '@/components/Header';
 import { useRealtimeSync } from '@/socket/useRealtimeSync';
 import { connectSocket, disconnectSocket } from '@/socket/client';
 import { useCurrentUser } from '@/api/hooks/useAuth';
-import { UserRole } from '@nit-wms/shared/types';
-import type { User } from '@nit-wms/shared/types';
+import { UserRole } from '@nit-scs/shared/types';
+import type { User } from '@nit-scs/shared/types';
 
 /** Map backend systemRole string to frontend UserRole enum */
 function mapSystemRoleToUserRole(systemRole: string): UserRole {
@@ -181,7 +181,7 @@ const Layout: React.FC<{
 
 const AppRoutes: React.FC = () => {
   const queryClient = useQueryClient();
-  const hasToken = !!localStorage.getItem('nit_wms_token');
+  const hasToken = !!localStorage.getItem('nit_scs_token');
   const meQuery = useCurrentUser();
 
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.ADMIN);
@@ -197,12 +197,12 @@ const AppRoutes: React.FC = () => {
       setIsAuthenticated(true);
       setIsInitializing(false);
       // Reconnect socket with existing token
-      connectSocket(localStorage.getItem('nit_wms_token') || '');
+      connectSocket(localStorage.getItem('nit_scs_token') || '');
     } else if (meQuery.isError || (!hasToken && !meQuery.isLoading)) {
       // Token invalid or missing — clear and show login
       if (meQuery.isError) {
-        localStorage.removeItem('nit_wms_token');
-        localStorage.removeItem('nit_wms_refresh_token');
+        localStorage.removeItem('nit_scs_token');
+        localStorage.removeItem('nit_scs_refresh_token');
       }
       setIsInitializing(false);
     }
@@ -212,14 +212,14 @@ const AppRoutes: React.FC = () => {
     setCurrentRole(role);
     setIsAuthenticated(true);
     // Connect Socket.IO with the stored JWT token
-    const token = localStorage.getItem('nit_wms_token') || '';
+    const token = localStorage.getItem('nit_scs_token') || '';
     connectSocket(token);
   };
 
   const handleLogout = () => {
     disconnectSocket();
-    localStorage.removeItem('nit_wms_token');
-    localStorage.removeItem('nit_wms_refresh_token');
+    localStorage.removeItem('nit_scs_token');
+    localStorage.removeItem('nit_scs_refresh_token');
     queryClient.clear();
     setIsAuthenticated(false);
   };

@@ -7,7 +7,7 @@ let socket: Socket | null = null;
 export function getSocket(): Socket {
   if (!socket) {
     socket = io(SOCKET_URL, {
-      auth: { token: localStorage.getItem('nit_wms_token') || '' },
+      auth: { token: localStorage.getItem('nit_scs_token') || '' },
       autoConnect: false,
       transports: ['websocket', 'polling'],
     });

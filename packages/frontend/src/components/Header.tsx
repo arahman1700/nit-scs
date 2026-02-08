@@ -2,9 +2,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Menu, Search, Settings, CheckCircle, AlertTriangle, Package, Clock, Info, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { User, UserRole } from '@nit-wms/shared/types';
+import type { User, UserRole } from '@nit-scs/shared/types';
 import { useAppStore } from '@/store/useAppStore';
-import { formatRelativeTime } from '@nit-wms/shared/formatters';
+import { formatRelativeTime } from '@nit-scs/shared/formatters';
 
 interface HeaderProps {
   toggleSidebar: () => void;

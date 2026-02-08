@@ -1,5 +1,5 @@
-import type { NavItem } from '@nit-wms/shared/types';
-import { UserRole } from '@nit-wms/shared/types';
+import type { NavItem } from '@nit-scs/shared/types';
+import { UserRole } from '@nit-scs/shared/types';
 
 export const NAVIGATION_LINKS: Record<string, NavItem[]> = {
   [UserRole.ADMIN]: [

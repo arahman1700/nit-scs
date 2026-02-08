@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save, ClipboardList, CheckCircle, AlertCircle } from 'lucide-react';
-import type { VoucherLineItem } from '@nit-wms/shared/types';
+import type { VoucherLineItem } from '@nit-scs/shared/types';
 import { LineItemsTable } from '@/components/LineItemsTable';
 import { useCreateMrf } from '@/api/hooks/useMrf';
 import { useWarehouses, useProjects } from '@/api/hooks/useMasterData';
-import type { Warehouse, Project } from '@nit-wms/shared/types';
+import type { Warehouse, Project } from '@nit-scs/shared/types';
 import { previewNextNumber } from '@/utils/autoNumber';
-import { getRequiredApprovalLevel } from '@nit-wms/shared/permissions';
+import { getRequiredApprovalLevel } from '@nit-scs/shared/permissions';
 
 export const MrfForm: React.FC = () => {
   const navigate = useNavigate();

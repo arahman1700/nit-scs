@@ -9,7 +9,7 @@ import { ApprovalWorkflow } from '@/components/ApprovalWorkflow';
 import { StatusTimeline } from '@/components/StatusTimeline';
 import { toast } from '@/components/Toaster';
 import { generateDocumentPdf, buildPdfOptions } from '@/utils/pdfExport';
-import type { StatusHistoryEntry } from '@nit-wms/shared/types';
+import type { StatusHistoryEntry } from '@nit-scs/shared/types';
 import {
   useMrrvList, useMirvList, useMrvList, useShipments, useInventory,
   useJobOrders, useRfimList, useOsdList, useProjects, useEmployees,

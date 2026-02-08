@@ -6,13 +6,13 @@ import { useProjects, useWarehouses, useSuppliers, useMrrvList, useEmployees, us
 import { useCreateMrrv, useCreateMirv, useCreateMrv, useCreateJobOrder, useCreateRfim, useCreateOsd } from '@/api/hooks';
 import { useUpdateMrrv, useUpdateMirv, useUpdateMrv, useUpdateJobOrder, useUpdateRfim, useUpdateOsd } from '@/api/hooks';
 import { useMrrv, useMirv, useMrv, useJobOrder, useRfim, useOsd } from '@/api/hooks';
-import type { VoucherLineItem } from '@nit-wms/shared/types';
+import type { VoucherLineItem } from '@nit-scs/shared/types';
 import { LineItemsTable } from '@/components/LineItemsTable';
 import { useFormSubmit } from '@/hooks/useFormSubmit';
-import { validateMRRV, validateMIRV, validateMRV, validateJO } from '@nit-wms/shared/validators';
+import { validateMRRV, validateMIRV, validateMRV, validateJO } from '@nit-scs/shared/validators';
 import { previewNextNumber } from '@/utils/autoNumber';
-import { getRequiredApprovalLevel } from '@nit-wms/shared/permissions';
-import { MIRV_APPROVAL_LEVELS, JO_APPROVAL_LEVELS } from '@nit-wms/shared/constants';
+import { getRequiredApprovalLevel } from '@nit-scs/shared/permissions';
+import { MIRV_APPROVAL_LEVELS, JO_APPROVAL_LEVELS } from '@nit-scs/shared/constants';
 
 // Field type used in form config
 interface FormFieldDef {

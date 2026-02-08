@@ -1,11 +1,10 @@
 // ============================================================================
 // Form Submission Hook
 // Handles validation, submission, auto-numbering
-// TODO: Replace with React Query mutations in Phase 8
 // ============================================================================
 
 import { useState, useCallback } from 'react';
-import type { VoucherLineItem } from '@nit-wms/shared/types';
+import type { VoucherLineItem } from '@nit-scs/shared/types';
 import { generateDocumentNumber } from '@/utils/autoNumber';
 
 interface UseFormSubmitOptions {

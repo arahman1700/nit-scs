@@ -7,8 +7,8 @@ import { useMrfList } from '@/api/hooks/useMrf';
 import { useStockTransferList } from '@/api/hooks/useStockTransfers';
 import { useProjects } from '@/api/hooks/useMasterData';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { formatCurrency } from '@nit-wms/shared/formatters';
-import type { MIRV, JobOrder, Project } from '@nit-wms/shared/types';
+import { formatCurrency } from '@nit-scs/shared/formatters';
+import type { MIRV, JobOrder, Project } from '@nit-scs/shared/types';
 
 type ManagerTab = 'overview' | 'approvals' | 'documents' | 'projects';
 

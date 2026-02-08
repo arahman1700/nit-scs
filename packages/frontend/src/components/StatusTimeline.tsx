@@ -1,7 +1,7 @@
 
 import React from 'react';
-import type { StatusHistoryEntry } from '@nit-wms/shared/types';
-import { formatRelativeTime, formatDate } from '@nit-wms/shared/formatters';
+import type { StatusHistoryEntry } from '@nit-scs/shared/types';
+import { formatRelativeTime, formatDate } from '@nit-scs/shared/formatters';
 
 interface StatusTimelineProps {
   history: StatusHistoryEntry[];

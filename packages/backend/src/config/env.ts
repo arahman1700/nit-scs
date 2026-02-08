@@ -23,9 +23,9 @@ export function getEnv(): Env {
       // Use defaults in development
       if (process.env.NODE_ENV !== 'production') {
         _env = envSchema.parse({
-          DATABASE_URL: process.env.DATABASE_URL || 'postgresql://nit_admin:nit_wms_dev_2026@localhost:5432/nit_wms',
-          JWT_SECRET: process.env.JWT_SECRET || 'nit-wms-dev-jwt-secret-2026',
-          JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'nit-wms-dev-jwt-refresh-2026',
+          DATABASE_URL: process.env.DATABASE_URL || 'postgresql://nit_admin:nit_scs_dev_2026@localhost:5432/nit_scs',
+          JWT_SECRET: process.env.JWT_SECRET || 'nit-scs-dev-jwt-secret-2026',
+          JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || 'nit-scs-dev-jwt-refresh-2026',
           ...process.env,
         });
         return _env;

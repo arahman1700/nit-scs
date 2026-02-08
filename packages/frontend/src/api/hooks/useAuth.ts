@@ -5,7 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../client';
-import type { User } from '@nit-wms/shared/types';
+import type { User } from '@nit-scs/shared/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -53,8 +53,8 @@ export function useLogin() {
       return data;
     },
     onSuccess: (result) => {
-      localStorage.setItem('nit_wms_token', result.data.accessToken);
-      localStorage.setItem('nit_wms_refresh_token', result.data.refreshToken);
+      localStorage.setItem('nit_scs_token', result.data.accessToken);
+      localStorage.setItem('nit_scs_refresh_token', result.data.refreshToken);
       qc.setQueryData(['auth', 'me'], { success: true, data: result.data.user });
     },
   });
@@ -68,8 +68,8 @@ export function useLogout() {
       await apiClient.post('/auth/logout');
     },
     onSettled: () => {
-      localStorage.removeItem('nit_wms_token');
-      localStorage.removeItem('nit_wms_refresh_token');
+      localStorage.removeItem('nit_scs_token');
+      localStorage.removeItem('nit_scs_refresh_token');
       qc.clear();
     },
   });
@@ -103,7 +103,7 @@ export function useCurrentUser() {
       const { data } = await apiClient.get<MeResponse>('/auth/me');
       return data;
     },
-    enabled: !!localStorage.getItem('nit_wms_token'),
+    enabled: !!localStorage.getItem('nit_scs_token'),
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false,
   });

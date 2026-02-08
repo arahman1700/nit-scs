@@ -3,8 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bell, CheckCircle, AlertTriangle, Package, Clock, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store/useAppStore';
-import { formatRelativeTime } from '@nit-wms/shared/formatters';
-import type { Notification } from '@nit-wms/shared/types';
+import { formatRelativeTime } from '@nit-scs/shared/formatters';
+import type { Notification } from '@nit-scs/shared/types';
 
 const NOTIFICATION_ICONS: Record<Notification['type'], React.ElementType> = {
   approval_request: Clock,

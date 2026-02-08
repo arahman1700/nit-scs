@@ -3,7 +3,7 @@
 // In production this will be generated server-side
 // ============================================================================
 
-const COUNTER_KEY = 'nit_wms_doc_counters';
+const COUNTER_KEY = 'nit_scs_doc_counters';
 
 interface CounterStore {
   [key: string]: number;

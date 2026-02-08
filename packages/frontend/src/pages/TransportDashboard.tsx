@@ -2,8 +2,8 @@
 import React, { useMemo, useState } from 'react';
 import { useJobOrderList } from '@/api/hooks/useJobOrders';
 import { useSuppliers, useEmployees } from '@/api/hooks/useMasterData';
-import { JobStatus } from '@nit-wms/shared/types';
-import type { JobOrder, Supplier, Employee } from '@nit-wms/shared/types';
+import { JobStatus } from '@nit-scs/shared/types';
+import type { JobOrder, Supplier, Employee } from '@nit-scs/shared/types';
 import { Calendar, Truck, User, MoreHorizontal, Plus, Users, Settings, Search, MapPin, Phone, Star, CheckCircle, Clock, AlertTriangle, Filter, Eye, Wrench, Fuel, BarChart3, Package } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 

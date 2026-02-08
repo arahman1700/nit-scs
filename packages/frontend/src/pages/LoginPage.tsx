@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, LogIn, Loader2, ArrowLeft, Mail, KeyRound, CheckCircle2 } from 'lucide-react';
 import { NesmaLogo } from '@/components/NesmaLogo';
 import { IdaratechLogo } from '@/components/IdaratechLogo';
-import { UserRole } from '@nit-wms/shared/types';
+import { UserRole } from '@nit-scs/shared/types';
 import { useLogin, useForgotPassword, useResetPassword } from '@/api/hooks';
 
 interface LoginPageProps {

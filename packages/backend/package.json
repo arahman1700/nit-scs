@@ -1,5 +1,5 @@
 {
-  "name": "@nit-wms/backend",
+  "name": "@nit-scs/backend",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@nit-wms/shared": "workspace:*",
+    "@nit-scs/shared": "workspace:*",
     "@prisma/client": "^6.5.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
