@@ -129,7 +129,8 @@ describe('POST /api/v1/auth/login', () => {
   });
 
   it('should return 401 when credentials are invalid', async () => {
-    loginMock.mockRejectedValue(new Error('Invalid email or password'));
+    const { AuthenticationError } = await import('@nit-scs/shared');
+    loginMock.mockRejectedValue(new AuthenticationError('Invalid email or password'));
 
     const res = await request.post('/api/v1/auth/login').send({ email: 'bad@nit.com', password: 'wrong' });
 

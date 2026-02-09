@@ -12,6 +12,7 @@ import {
 } from '../schemas/auth.schema.js';
 import * as authService from '../services/auth.service.js';
 import { sendSuccess, sendError } from '../utils/response.js';
+import { AuthenticationError } from '@nit-scs/shared';
 
 const router = Router();
 
@@ -26,7 +27,7 @@ router.post(
       const result = await authService.login(email, password);
       sendSuccess(res, result);
     } catch (err) {
-      if (err instanceof Error && err.message.includes('Invalid')) {
+      if (err instanceof AuthenticationError) {
         sendError(res, 401, err.message);
         return;
       }
