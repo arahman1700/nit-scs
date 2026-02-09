@@ -57,7 +57,8 @@ export interface LoginResult {
 }
 
 export async function login(email: string, password: string): Promise<LoginResult> {
-  const employee = await prisma.employee.findUnique({ where: { email } });
+  const normalizedEmail = email.toLowerCase();
+  const employee = await prisma.employee.findUnique({ where: { email: normalizedEmail } });
   if (!employee || !employee.passwordHash) {
     throw new AuthenticationError('Invalid email or password');
   }
@@ -265,9 +266,10 @@ export async function forgotPassword(email: string): Promise<void> {
 }
 
 export async function resetPassword(email: string, code: string, newPassword: string): Promise<void> {
+  const normalizedEmail = email.toLowerCase();
   const entry = await prisma.passwordResetCode.findFirst({
     where: {
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       code,
       expiresAt: { gt: new Date() },
     },
@@ -278,7 +280,7 @@ export async function resetPassword(email: string, code: string, newPassword: st
     throw new BusinessRuleError('Invalid or expired reset code');
   }
 
-  const employee = await prisma.employee.findUnique({ where: { email } });
+  const employee = await prisma.employee.findUnique({ where: { email: normalizedEmail } });
   if (!employee) {
     throw new BusinessRuleError('Invalid or expired reset code');
   }
@@ -291,7 +293,7 @@ export async function resetPassword(email: string, code: string, newPassword: st
 
   // Clean up all reset codes for this email
   await prisma.passwordResetCode.deleteMany({
-    where: { email: email.toLowerCase() },
+    where: { email: normalizedEmail },
   });
 
   // Revoke all existing refresh tokens (force re-login with new password)

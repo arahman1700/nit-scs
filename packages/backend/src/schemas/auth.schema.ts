@@ -13,7 +13,10 @@ const strongPassword = z
 // ── Schemas ─────────────────────────────────────────────────────────────
 
 export const loginSchema = z.object({
-  email: z.string().email('Valid email is required'),
+  email: z
+    .string()
+    .email('Valid email is required')
+    .transform(s => s.toLowerCase()),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -27,11 +30,17 @@ export const changePasswordSchema = z.object({
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('Valid email is required'),
+  email: z
+    .string()
+    .email('Valid email is required')
+    .transform(s => s.toLowerCase()),
 });
 
 export const resetPasswordSchema = z.object({
-  email: z.string().email('Valid email is required'),
+  email: z
+    .string()
+    .email('Valid email is required')
+    .transform(s => s.toLowerCase()),
   code: z.string().min(6, 'Code must be 6 digits').max(6, 'Code must be 6 digits'),
   newPassword: strongPassword,
 });
