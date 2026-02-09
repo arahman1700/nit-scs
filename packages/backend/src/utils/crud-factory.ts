@@ -11,6 +11,11 @@ import { validate } from '../middleware/validate.js';
 import { createAuditLog } from '../services/audit.service.js';
 import { emitToAll } from '../socket/setup.js';
 import { clientIp } from './helpers.js';
+import { buildScopeFilter, canAccessRecord, type ScopeFieldMapping } from './scope-filter.js';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 type PrismaDelegate = {
   findMany: (args: unknown) => Promise<unknown[]>;
@@ -21,50 +26,94 @@ type PrismaDelegate = {
   delete: (args: unknown) => Promise<unknown>;
 };
 
-interface CrudConfig {
-  modelName: string; // e.g., 'region', 'project'
-  tableName: string; // for audit log
+export interface CrudConfig {
+  /** Prisma model name (camelCase, e.g. 'region', 'project'). */
+  modelName: string;
+  /** Database table name (for audit log). */
+  tableName: string;
+  /** Zod schema for POST (create). */
   createSchema: ZodSchema;
+  /** Zod schema for PUT (update). */
   updateSchema: ZodSchema;
-  searchFields?: string[]; // fields to search with LIKE
-  includes?: Record<string, unknown>; // Prisma include for list/get
+  /** Fields that can be searched with ILIKE (e.g. ['regionName', 'code']). */
+  searchFields?: string[];
+  /** Prisma `include` clause for list queries. Also used for get-by-id if `detailIncludes` is not set. */
+  includes?: Record<string, unknown>;
+  /** Prisma `include` clause for get-by-id (detail) queries. Falls back to `includes` if omitted. */
+  detailIncludes?: Record<string, unknown>;
+  /** Default sort column (default: 'createdAt'). */
   defaultSort?: string;
-  allowedRoles?: string[]; // if specified, restrict write ops
+  /** If specified, only these roles may create/update/delete. */
+  allowedRoles?: string[];
+  /**
+   * Query parameters that may be forwarded as Prisma `where` filters.
+   * Any parameter NOT in this list is silently ignored.
+   * If omitted, NO query-param filtering is allowed (safe default).
+   */
+  allowedFilters?: string[];
+  /** Whether this model supports soft-delete (has `deletedAt` column). Default: true. */
+  softDelete?: boolean;
+  /**
+   * Row-level security: field mapping for scope filtering.
+   * If omitted, no scope filter is applied (master data is typically unscoped).
+   */
+  scopeMapping?: ScopeFieldMapping;
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function getDelegate(modelName: string): PrismaDelegate {
   return (prisma as unknown as Record<string, PrismaDelegate>)[modelName];
 }
 
-/** Extract entity name from route base URL (e.g. '/api/regions' → 'regions') */
+/** Extract entity name from route base URL (e.g. '/api/v1/regions' -> 'regions'). */
 function entityFromUrl(req: Request): string {
   const segments = req.baseUrl.split('/').filter(Boolean);
   return segments[segments.length - 1] ?? '';
 }
 
+// ---------------------------------------------------------------------------
+// Factory
+// ---------------------------------------------------------------------------
+
 export function createCrudRouter(config: CrudConfig): Router {
   const router = Router();
   const delegate = getDelegate(config.modelName);
+  const softDelete = config.softDelete !== false; // default true
 
-  // GET / - List with pagination, search, sort
+  // ── GET / — List with pagination, search, sort, filter ──────────────
   router.get(
     '/',
     authenticate,
-    paginate(config.defaultSort || 'id'),
+    paginate(config.defaultSort || 'createdAt'),
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         const { skip, pageSize, sortBy, sortDir, search, page } = req.pagination!;
 
         const where: Record<string, unknown> = {};
-        if (search && config.searchFields?.length) {
-          where.OR = config.searchFields.map(f => ({ [f]: { contains: search, mode: 'insensitive' } }));
+
+        // Row-level security: inject scope filter if configured
+        if (config.scopeMapping) {
+          Object.assign(where, buildScopeFilter(req.user!, config.scopeMapping));
         }
 
-        // Apply query filters
-        for (const [key, value] of Object.entries(req.query)) {
-          if (['page', 'pageSize', 'sortBy', 'sortDir', 'search'].includes(key)) continue;
-          if (value && typeof value === 'string') {
-            where[key] = value;
+        // Text search across configured fields
+        if (search && config.searchFields?.length) {
+          where.OR = config.searchFields.map(f => ({
+            [f]: { contains: search, mode: 'insensitive' },
+          }));
+        }
+
+        // Safe query-param filters (only allowed fields)
+        if (config.allowedFilters?.length) {
+          const reserved = new Set(['page', 'pageSize', 'sortBy', 'sortDir', 'search']);
+          for (const [key, value] of Object.entries(req.query)) {
+            if (reserved.has(key)) continue;
+            if (config.allowedFilters.includes(key) && value && typeof value === 'string') {
+              where[key] = value;
+            }
           }
         }
 
@@ -86,15 +135,21 @@ export function createCrudRouter(config: CrudConfig): Router {
     },
   );
 
-  // GET /:id - Get by ID
+  // ── GET /:id — Get by ID ────────────────────────────────────────────
   router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const detailInclude = config.detailIncludes ?? config.includes;
       const record = await delegate.findUnique({
         where: { id: req.params.id as string },
-        ...(config.includes ? { include: config.includes } : {}),
+        ...(detailInclude ? { include: detailInclude } : {}),
       });
       if (!record) {
         sendError(res, 404, 'Record not found');
+        return;
+      }
+      // Row-level security: verify access if scoping is configured
+      if (config.scopeMapping && !canAccessRecord(req.user!, record as Record<string, unknown>, config.scopeMapping)) {
+        sendError(res, 403, 'You do not have access to this record');
         return;
       }
       sendSuccess(res, record);
@@ -106,7 +161,7 @@ export function createCrudRouter(config: CrudConfig): Router {
   // Build write middleware chain (authenticate + optional RBAC)
   const writeMw = config.allowedRoles?.length ? [authenticate, requireRole(...config.allowedRoles)] : [authenticate];
 
-  // POST / - Create
+  // ── POST / — Create ─────────────────────────────────────────────────
   router.post(
     '/',
     ...writeMw,
@@ -125,9 +180,7 @@ export function createCrudRouter(config: CrudConfig): Router {
         });
 
         const io = req.app.get('io') as SocketIOServer | undefined;
-        if (io) {
-          emitToAll(io, 'entity:created', { entity: entityFromUrl(req) });
-        }
+        if (io) emitToAll(io, 'entity:created', { entity: entityFromUrl(req) });
 
         sendCreated(res, record);
       } catch (err) {
@@ -136,7 +189,7 @@ export function createCrudRouter(config: CrudConfig): Router {
     },
   );
 
-  // PUT /:id - Update
+  // ── PUT /:id — Update ───────────────────────────────────────────────
   router.put(
     '/:id',
     ...writeMw,
@@ -146,6 +199,11 @@ export function createCrudRouter(config: CrudConfig): Router {
         const old = await delegate.findUnique({ where: { id: req.params.id as string } });
         if (!old) {
           sendError(res, 404, 'Record not found');
+          return;
+        }
+        // Row-level security
+        if (config.scopeMapping && !canAccessRecord(req.user!, old as Record<string, unknown>, config.scopeMapping)) {
+          sendError(res, 403, 'You do not have access to this record');
           return;
         }
 
@@ -165,9 +223,7 @@ export function createCrudRouter(config: CrudConfig): Router {
         });
 
         const io = req.app.get('io') as SocketIOServer | undefined;
-        if (io) {
-          emitToAll(io, 'entity:updated', { entity: entityFromUrl(req) });
-        }
+        if (io) emitToAll(io, 'entity:updated', { entity: entityFromUrl(req) });
 
         sendSuccess(res, record);
       } catch (err) {
@@ -176,23 +232,44 @@ export function createCrudRouter(config: CrudConfig): Router {
     },
   );
 
-  // DELETE /:id - Delete
+  // ── DELETE /:id — Soft-delete (or hard-delete for lookup tables) ─────
   router.delete('/:id', ...writeMw, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await delegate.delete({ where: { id: req.params.id as string } });
+      const id = req.params.id as string;
+
+      // Row-level security check before delete
+      if (config.scopeMapping) {
+        const existing = await delegate.findUnique({ where: { id } });
+        if (!existing) {
+          sendError(res, 404, 'Record not found');
+          return;
+        }
+        if (!canAccessRecord(req.user!, existing as Record<string, unknown>, config.scopeMapping)) {
+          sendError(res, 403, 'You do not have access to this record');
+          return;
+        }
+      }
+
+      if (softDelete) {
+        // Soft-delete: set deletedAt timestamp
+        await delegate.update({
+          where: { id },
+          data: { deletedAt: new Date() },
+        });
+      } else {
+        await delegate.delete({ where: { id } });
+      }
 
       await createAuditLog({
         tableName: config.tableName,
-        recordId: req.params.id as string,
+        recordId: id,
         action: 'delete',
         performedById: req.user!.userId,
         ipAddress: clientIp(req),
       });
 
       const io = req.app.get('io') as SocketIOServer | undefined;
-      if (io) {
-        emitToAll(io, 'entity:deleted', { entity: entityFromUrl(req) });
-      }
+      if (io) emitToAll(io, 'entity:deleted', { entity: entityFromUrl(req) });
 
       sendNoContent(res);
     } catch (err) {

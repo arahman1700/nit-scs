@@ -4,6 +4,7 @@ import { generateDocumentNumber } from './document-number.service.js';
 import { getStockLevel } from './inventory.service.js';
 import { NotFoundError, BusinessRuleError } from '@nit-scs/shared';
 import { assertTransition } from '@nit-scs/shared';
+import type { MrfCreateDto, MrfUpdateDto, MrfLineDto, ListParams } from '../types/dto.js';
 
 const DOC_TYPE = 'mrf';
 
@@ -30,15 +31,7 @@ const DETAIL_INCLUDE = {
   mirv: { select: { id: true, mirvNumber: true, status: true } },
 } satisfies Prisma.MaterialRequisitionInclude;
 
-export async function list(params: {
-  skip: number;
-  pageSize: number;
-  sortBy: string;
-  sortDir: string;
-  search?: string;
-  status?: string;
-  projectId?: string;
-}) {
+export async function list(params: ListParams) {
   const where: Record<string, unknown> = {};
   if (params.search) {
     where.OR = [
@@ -48,6 +41,8 @@ export async function list(params: {
   }
   if (params.status) where.status = params.status;
   if (params.projectId) where.projectId = params.projectId;
+  // Row-level security scope filters
+  if (params.requestedById) where.requestedById = params.requestedById;
 
   const [data, total] = await Promise.all([
     prisma.materialRequisition.findMany({
@@ -68,19 +63,27 @@ export async function getById(id: string) {
   return mrf;
 }
 
-export async function create(headerData: Record<string, unknown>, lines: Record<string, unknown>[], userId: string) {
+export async function create(headerData: Omit<MrfCreateDto, 'lines'>, lines: MrfLineDto[], userId: string) {
   return prisma.$transaction(async tx => {
     const mrfNumber = await generateDocumentNumber('mrf');
+
+    // Batch-fetch item costs to avoid N+1 queries
+    const itemIds = lines.filter(l => l.itemId).map(l => l.itemId as string);
+    const items =
+      itemIds.length > 0
+        ? await tx.item.findMany({
+            where: { id: { in: itemIds } },
+            select: { id: true, standardCost: true },
+          })
+        : [];
+    const costMap = new Map(items.map(i => [i.id, Number(i.standardCost ?? 0)]));
 
     let totalEstimatedValue = 0;
     for (const line of lines) {
       if (line.itemId) {
-        const item = await tx.item.findUnique({
-          where: { id: line.itemId as string },
-          select: { standardCost: true },
-        });
-        if (item?.standardCost) {
-          totalEstimatedValue += Number(item.standardCost) * (line.qtyRequested as number);
+        const cost = costMap.get(line.itemId) ?? 0;
+        if (cost > 0) {
+          totalEstimatedValue += cost * line.qtyRequested;
         }
       }
     }
@@ -88,27 +91,27 @@ export async function create(headerData: Record<string, unknown>, lines: Record<
     return tx.materialRequisition.create({
       data: {
         mrfNumber,
-        requestDate: new Date(headerData.requestDate as string),
-        requiredDate: headerData.requiredDate ? new Date(headerData.requiredDate as string) : null,
-        projectId: headerData.projectId as string,
-        department: (headerData.department as string) ?? null,
+        requestDate: new Date(headerData.requestDate),
+        requiredDate: headerData.requiredDate ? new Date(headerData.requiredDate) : null,
+        projectId: headerData.projectId,
+        department: headerData.department ?? null,
         requestedById: userId,
-        deliveryPoint: (headerData.deliveryPoint as string) ?? null,
-        workOrder: (headerData.workOrder as string) ?? null,
-        drawingReference: (headerData.drawingReference as string) ?? null,
-        priority: (headerData.priority as string) ?? 'medium',
+        deliveryPoint: headerData.deliveryPoint ?? null,
+        workOrder: headerData.workOrder ?? null,
+        drawingReference: headerData.drawingReference ?? null,
+        priority: headerData.priority ?? 'medium',
         totalEstimatedValue,
         status: 'draft',
-        notes: (headerData.notes as string) ?? null,
+        notes: headerData.notes ?? null,
         mrfLines: {
           create: lines.map(line => ({
-            itemId: (line.itemId as string) ?? null,
-            itemDescription: (line.itemDescription as string) ?? null,
-            category: (line.category as string) ?? null,
-            qtyRequested: line.qtyRequested as number,
-            uomId: (line.uomId as string) ?? null,
-            source: (line.source as string) ?? 'tbd',
-            notes: (line.notes as string) ?? null,
+            itemId: line.itemId ?? null,
+            itemDescription: line.itemDescription ?? null,
+            category: line.category ?? null,
+            qtyRequested: line.qtyRequested,
+            uomId: line.uomId ?? null,
+            source: line.source ?? 'tbd',
+            notes: line.notes ?? null,
           })),
         },
       },
@@ -120,7 +123,7 @@ export async function create(headerData: Record<string, unknown>, lines: Record<
   });
 }
 
-export async function update(id: string, data: Record<string, unknown>) {
+export async function update(id: string, data: MrfUpdateDto) {
   const existing = await prisma.materialRequisition.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('Material Requisition', id);
   if (existing.status !== 'draft') throw new BusinessRuleError('Only draft MRFs can be updated');
@@ -129,8 +132,8 @@ export async function update(id: string, data: Record<string, unknown>) {
     where: { id },
     data: {
       ...data,
-      ...(data.requestDate ? { requestDate: new Date(data.requestDate as string) } : {}),
-      ...(data.requiredDate ? { requiredDate: new Date(data.requiredDate as string) } : {}),
+      ...(data.requestDate ? { requestDate: new Date(data.requestDate) } : {}),
+      ...(data.requiredDate ? { requiredDate: new Date(data.requiredDate) } : {}),
     },
   });
   return { existing, updated };

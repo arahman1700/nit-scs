@@ -1,6 +1,7 @@
 import { createDocumentRouter } from '../utils/document-factory.js';
 import { osdCreateSchema, osdUpdateSchema } from '../schemas/document.schema.js';
 import * as osdService from '../services/osd.service.js';
+import type { OsdCreateDto, OsdUpdateDto } from '../types/dto.js';
 
 const WRITE_ROLES = ['admin', 'manager', 'warehouse_supervisor', 'qc_officer'];
 const RESOLVE_ROLES = ['admin', 'warehouse_supervisor', 'qc_officer'];
@@ -8,6 +9,7 @@ const RESOLVE_ROLES = ['admin', 'warehouse_supervisor', 'qc_officer'];
 export default createDocumentRouter({
   docType: 'osd',
   tableName: 'osd_reports',
+  scopeMapping: { warehouseField: 'warehouseId' },
 
   list: osdService.list,
   getById: osdService.getById,
@@ -15,13 +17,13 @@ export default createDocumentRouter({
   createSchema: osdCreateSchema,
   createRoles: WRITE_ROLES,
   create: body => {
-    const { lines, ...headerData } = body;
-    return osdService.create(headerData, lines as Record<string, unknown>[]);
+    const { lines, ...headerData } = body as OsdCreateDto;
+    return osdService.create(headerData, lines);
   },
 
   updateSchema: osdUpdateSchema,
   updateRoles: WRITE_ROLES,
-  update: osdService.update,
+  update: (id, body) => osdService.update(id, body as OsdUpdateDto),
 
   actions: [
     {

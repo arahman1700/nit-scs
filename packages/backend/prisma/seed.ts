@@ -8,13 +8,41 @@ async function main() {
 
   // ── Regions ──────────────────────────────────────────────────────────
   const regions = await Promise.all([
-    prisma.region.upsert({ where: { regionName: 'Riyadh' }, update: {}, create: { regionName: 'Riyadh', regionNameAr: 'الرياض' } }),
-    prisma.region.upsert({ where: { regionName: 'Makkah' }, update: {}, create: { regionName: 'Makkah', regionNameAr: 'مكة المكرمة' } }),
-    prisma.region.upsert({ where: { regionName: 'Eastern Province' }, update: {}, create: { regionName: 'Eastern Province', regionNameAr: 'المنطقة الشرقية' } }),
-    prisma.region.upsert({ where: { regionName: 'Madinah' }, update: {}, create: { regionName: 'Madinah', regionNameAr: 'المدينة المنورة' } }),
-    prisma.region.upsert({ where: { regionName: 'Asir' }, update: {}, create: { regionName: 'Asir', regionNameAr: 'عسير' } }),
-    prisma.region.upsert({ where: { regionName: 'Tabuk' }, update: {}, create: { regionName: 'Tabuk', regionNameAr: 'تبوك' } }),
-    prisma.region.upsert({ where: { regionName: 'Jazan' }, update: {}, create: { regionName: 'Jazan', regionNameAr: 'جازان' } }),
+    prisma.region.upsert({
+      where: { regionName: 'Riyadh' },
+      update: {},
+      create: { regionName: 'Riyadh', regionNameAr: 'الرياض' },
+    }),
+    prisma.region.upsert({
+      where: { regionName: 'Makkah' },
+      update: {},
+      create: { regionName: 'Makkah', regionNameAr: 'مكة المكرمة' },
+    }),
+    prisma.region.upsert({
+      where: { regionName: 'Eastern Province' },
+      update: {},
+      create: { regionName: 'Eastern Province', regionNameAr: 'المنطقة الشرقية' },
+    }),
+    prisma.region.upsert({
+      where: { regionName: 'Madinah' },
+      update: {},
+      create: { regionName: 'Madinah', regionNameAr: 'المدينة المنورة' },
+    }),
+    prisma.region.upsert({
+      where: { regionName: 'Asir' },
+      update: {},
+      create: { regionName: 'Asir', regionNameAr: 'عسير' },
+    }),
+    prisma.region.upsert({
+      where: { regionName: 'Tabuk' },
+      update: {},
+      create: { regionName: 'Tabuk', regionNameAr: 'تبوك' },
+    }),
+    prisma.region.upsert({
+      where: { regionName: 'Jazan' },
+      update: {},
+      create: { regionName: 'Jazan', regionNameAr: 'جازان' },
+    }),
   ]);
   console.log(`  Regions: ${regions.length}`);
 
@@ -33,9 +61,13 @@ async function main() {
   const cities = [];
   for (const c of cityData) {
     const region = regions.find(r => r.regionName === c.region)!;
-    cities.push(await prisma.city.create({
-      data: { cityName: c.cityName, cityNameAr: c.cityNameAr, regionId: region.id },
-    }).catch(() => prisma.city.findFirst({ where: { cityName: c.cityName } }).then(r => r!)));
+    cities.push(
+      await prisma.city
+        .create({
+          data: { cityName: c.cityName, cityNameAr: c.cityNameAr, regionId: region.id },
+        })
+        .catch(() => prisma.city.findFirst({ where: { cityName: c.cityName } }).then(r => r!)),
+    );
   }
   console.log(`  Cities: ${cities.length}`);
 
@@ -50,9 +82,11 @@ async function main() {
   ];
   for (const p of portData) {
     const city = cities.find(c => c!.cityName === p.city);
-    await prisma.port.create({
-      data: { portName: p.portName, portCode: p.portCode, portType: p.portType, cityId: city?.id },
-    }).catch(() => null);
+    await prisma.port
+      .create({
+        data: { portName: p.portName, portCode: p.portCode, portType: p.portType, cityId: city?.id },
+      })
+      .catch(() => null);
   }
   console.log(`  Ports: ${portData.length}`);
 
@@ -102,9 +136,9 @@ async function main() {
   const createdCategories = [];
   for (const ec of equipCategories) {
     createdCategories.push(
-      await prisma.equipmentCategory.create({ data: ec }).catch(() =>
-        prisma.equipmentCategory.findFirst({ where: { categoryName: ec.categoryName } }).then(r => r!)
-      )
+      await prisma.equipmentCategory
+        .create({ data: ec })
+        .catch(() => prisma.equipmentCategory.findFirst({ where: { categoryName: ec.categoryName } }).then(r => r!)),
     );
   }
   console.log(`  Equipment Categories: ${createdCategories.length}`);
@@ -120,9 +154,11 @@ async function main() {
   ];
   for (const et of equipTypes) {
     const cat = createdCategories.find(c => c!.categoryName === et.category);
-    await prisma.equipmentType.create({
-      data: { typeName: et.typeName, typeNameAr: et.typeNameAr, categoryId: cat?.id },
-    }).catch(() => null);
+    await prisma.equipmentType
+      .create({
+        data: { typeName: et.typeName, typeNameAr: et.typeNameAr, categoryId: cat?.id },
+      })
+      .catch(() => null);
   }
   console.log(`  Equipment Types: ${equipTypes.length}`);
 
@@ -161,14 +197,20 @@ async function main() {
   const docTypes = ['mrrv', 'mirv', 'mrv', 'rfim', 'osd', 'jo', 'gp', 'mrf', 'st', 'sh', 'lot', 'lo'];
   const prefixes = ['MRRV', 'MIRV', 'MRV', 'RFIM', 'OSD', 'JO', 'GP', 'MRF', 'ST', 'SH', 'LOT', 'LO'];
   for (let i = 0; i < docTypes.length; i++) {
-    await prisma.documentCounter.create({
-      data: { documentType: docTypes[i], prefix: prefixes[i], year, lastNumber: 0 },
-    }).catch(() => null);
+    await prisma.documentCounter
+      .create({
+        data: { documentType: docTypes[i], prefix: prefixes[i], year, lastNumber: 0 },
+      })
+      .catch(() => null);
   }
   console.log(`  Document Counters: ${docTypes.length}`);
 
   // ── Admin User ───────────────────────────────────────────────────────
-  const passwordHash = await bcrypt.hash('admin123', 12);
+  const seedPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin@2026!';
+  if (!process.env.SEED_ADMIN_PASSWORD) {
+    console.log('  [WARN] No SEED_ADMIN_PASSWORD env var set — using default "Admin@2026!". Change after first login.');
+  }
+  const passwordHash = await bcrypt.hash(seedPassword, 12);
   const admin = await prisma.employee.upsert({
     where: { email: 'admin@nit.sa' },
     update: {},
@@ -189,26 +231,68 @@ async function main() {
 
   // ── Sample Employees ─────────────────────────────────────────────────
   const sampleEmployees = [
-    { id: 'EMP-002', name: 'Ahmed Hassan', nameAr: 'أحمد حسن', email: 'ahmed@nit.sa', dept: 'warehouse', role: 'Warehouse Staff', sysRole: 'warehouse_staff' },
-    { id: 'EMP-003', name: 'Mohammed Ali', nameAr: 'محمد علي', email: 'mohammed@nit.sa', dept: 'transport', role: 'Transport Staff', sysRole: 'logistics_coordinator' },
-    { id: 'EMP-004', name: 'Khalid Omar', nameAr: 'خالد عمر', email: 'khalid@nit.sa', dept: 'projects', role: 'Engineer', sysRole: 'site_engineer' },
-    { id: 'EMP-005', name: 'Saad Ibrahim', nameAr: 'سعد إبراهيم', email: 'saad@nit.sa', dept: 'quality', role: 'QC Officer', sysRole: 'qc_officer' },
-    { id: 'EMP-006', name: 'Abdulrahman Hussein', nameAr: 'عبدالرحمن حسين', email: 'abdulrahman@nit.sa', dept: 'logistics', role: 'Manager', sysRole: 'manager' },
+    {
+      id: 'EMP-002',
+      name: 'Ahmed Hassan',
+      nameAr: 'أحمد حسن',
+      email: 'ahmed@nit.sa',
+      dept: 'warehouse',
+      role: 'Warehouse Staff',
+      sysRole: 'warehouse_staff',
+    },
+    {
+      id: 'EMP-003',
+      name: 'Mohammed Ali',
+      nameAr: 'محمد علي',
+      email: 'mohammed@nit.sa',
+      dept: 'transport',
+      role: 'Transport Staff',
+      sysRole: 'logistics_coordinator',
+    },
+    {
+      id: 'EMP-004',
+      name: 'Khalid Omar',
+      nameAr: 'خالد عمر',
+      email: 'khalid@nit.sa',
+      dept: 'projects',
+      role: 'Engineer',
+      sysRole: 'site_engineer',
+    },
+    {
+      id: 'EMP-005',
+      name: 'Saad Ibrahim',
+      nameAr: 'سعد إبراهيم',
+      email: 'saad@nit.sa',
+      dept: 'quality',
+      role: 'QC Officer',
+      sysRole: 'qc_officer',
+    },
+    {
+      id: 'EMP-006',
+      name: 'Abdulrahman Hussein',
+      nameAr: 'عبدالرحمن حسين',
+      email: 'abdulrahman@nit.sa',
+      dept: 'logistics',
+      role: 'Manager',
+      sysRole: 'manager',
+    },
   ];
   for (const emp of sampleEmployees) {
-    await prisma.employee.create({
-      data: {
-        employeeIdNumber: emp.id,
-        fullName: emp.name,
-        fullNameAr: emp.nameAr,
-        email: emp.email,
-        department: emp.dept,
-        role: emp.role,
-        systemRole: emp.sysRole,
-        isActive: true,
-        passwordHash,
-      },
-    }).catch(() => null);
+    await prisma.employee
+      .create({
+        data: {
+          employeeIdNumber: emp.id,
+          fullName: emp.name,
+          fullNameAr: emp.nameAr,
+          email: emp.email,
+          department: emp.dept,
+          role: emp.role,
+          systemRole: emp.sysRole,
+          isActive: true,
+          passwordHash,
+        },
+      })
+      .catch(() => null);
   }
   console.log(`  Sample Employees: ${sampleEmployees.length}`);
 
@@ -216,7 +300,7 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
+  .catch(e => {
     console.error('Seed failed:', e);
     process.exit(1);
   })

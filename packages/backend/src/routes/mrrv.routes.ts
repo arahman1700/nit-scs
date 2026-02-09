@@ -3,6 +3,7 @@ import { createDocumentRouter } from '../utils/document-factory.js';
 import { mrrvCreateSchema, mrrvUpdateSchema } from '../schemas/document.schema.js';
 import { emitToAll } from '../socket/setup.js';
 import * as mrrvService from '../services/mrrv.service.js';
+import type { MrrvCreateDto, MrrvUpdateDto } from '../types/dto.js';
 
 const WRITE_ROLES = ['admin', 'manager', 'warehouse_supervisor', 'warehouse_staff'];
 const APPROVE_ROLES = ['admin', 'manager', 'warehouse_supervisor'];
@@ -10,6 +11,7 @@ const APPROVE_ROLES = ['admin', 'manager', 'warehouse_supervisor'];
 export default createDocumentRouter({
   docType: 'mrrv',
   tableName: 'mrrv',
+  scopeMapping: { warehouseField: 'warehouseId', projectField: 'projectId', createdByField: 'receivedById' },
 
   list: mrrvService.list,
   getById: mrrvService.getById,
@@ -17,13 +19,13 @@ export default createDocumentRouter({
   createSchema: mrrvCreateSchema,
   createRoles: WRITE_ROLES,
   create: (body, userId) => {
-    const { lines, ...headerData } = body;
-    return mrrvService.create(headerData, lines as Record<string, unknown>[], userId);
+    const { lines, ...headerData } = body as MrrvCreateDto;
+    return mrrvService.create(headerData, lines, userId);
   },
 
   updateSchema: mrrvUpdateSchema,
   updateRoles: WRITE_ROLES,
-  update: mrrvService.update,
+  update: (id, body) => mrrvService.update(id, body as MrrvUpdateDto),
 
   actions: [
     {

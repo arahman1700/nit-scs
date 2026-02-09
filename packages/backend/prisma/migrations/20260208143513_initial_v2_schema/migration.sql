@@ -719,6 +719,7 @@ CREATE TABLE "inventory_levels" (
     "reorder_point" DECIMAL(12,3),
     "last_movement_date" TIMESTAMPTZ,
     "alert_sent" BOOLEAN DEFAULT false,
+    "version" INTEGER NOT NULL DEFAULT 0,
     "updated_at" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "inventory_levels_pkey" PRIMARY KEY ("id")
@@ -1135,6 +1136,62 @@ CREATE TABLE "saved_reports" (
     CONSTRAINT "saved_reports_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "refresh_tokens" (
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "token" VARCHAR(500) NOT NULL,
+    "expires_at" TIMESTAMPTZ NOT NULL,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "document_comments" (
+    "id" UUID NOT NULL,
+    "document_type" VARCHAR(50) NOT NULL,
+    "document_id" UUID NOT NULL,
+    "author_id" UUID NOT NULL,
+    "content" TEXT NOT NULL,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ NOT NULL,
+    "deleted_at" TIMESTAMPTZ,
+
+    CONSTRAINT "document_comments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "approval_steps" (
+    "id" UUID NOT NULL,
+    "document_type" VARCHAR(50) NOT NULL,
+    "document_id" UUID NOT NULL,
+    "level" INTEGER NOT NULL,
+    "approver_role" VARCHAR(50) NOT NULL,
+    "approver_id" UUID,
+    "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
+    "notes" TEXT,
+    "decided_at" TIMESTAMPTZ,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "approval_steps_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "delegation_rules" (
+    "id" UUID NOT NULL,
+    "delegator_id" UUID NOT NULL,
+    "delegate_id" UUID NOT NULL,
+    "start_date" DATE NOT NULL,
+    "end_date" DATE NOT NULL,
+    "scope" VARCHAR(50) NOT NULL DEFAULT 'all',
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "notes" TEXT,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "delegation_rules_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "regions_region_name_key" ON "regions"("region_name");
 
@@ -1371,6 +1428,39 @@ CREATE INDEX "idx_widgets_dashboard" ON "dashboard_widgets"("dashboard_id");
 
 -- CreateIndex
 CREATE INDEX "idx_reports_owner" ON "saved_reports"("owner_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "refresh_tokens_token_key" ON "refresh_tokens"("token");
+
+-- CreateIndex
+CREATE INDEX "idx_refresh_tokens_user" ON "refresh_tokens"("user_id");
+
+-- CreateIndex
+CREATE INDEX "idx_refresh_tokens_expiry" ON "refresh_tokens"("expires_at");
+
+-- CreateIndex
+CREATE INDEX "idx_doc_comments_doc" ON "document_comments"("document_type", "document_id");
+
+-- CreateIndex
+CREATE INDEX "idx_doc_comments_author" ON "document_comments"("author_id");
+
+-- CreateIndex
+CREATE INDEX "idx_approval_steps_doc" ON "approval_steps"("document_type", "document_id");
+
+-- CreateIndex
+CREATE INDEX "idx_approval_steps_approver" ON "approval_steps"("approver_id");
+
+-- CreateIndex
+CREATE INDEX "idx_approval_steps_status" ON "approval_steps"("status");
+
+-- CreateIndex
+CREATE INDEX "idx_delegation_delegator" ON "delegation_rules"("delegator_id");
+
+-- CreateIndex
+CREATE INDEX "idx_delegation_delegate" ON "delegation_rules"("delegate_id");
+
+-- CreateIndex
+CREATE INDEX "idx_delegation_dates" ON "delegation_rules"("start_date", "end_date");
 
 -- AddForeignKey
 ALTER TABLE "cities" ADD CONSTRAINT "cities_region_id_fkey" FOREIGN KEY ("region_id") REFERENCES "regions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1809,3 +1899,18 @@ ALTER TABLE "dashboard_widgets" ADD CONSTRAINT "dashboard_widgets_dashboard_id_f
 
 -- AddForeignKey
 ALTER TABLE "saved_reports" ADD CONSTRAINT "saved_reports_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "document_comments" ADD CONSTRAINT "document_comments_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "approval_steps" ADD CONSTRAINT "approval_steps_approver_id_fkey" FOREIGN KEY ("approver_id") REFERENCES "employees"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "delegation_rules" ADD CONSTRAINT "delegation_rules_delegator_id_fkey" FOREIGN KEY ("delegator_id") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "delegation_rules" ADD CONSTRAINT "delegation_rules_delegate_id_fkey" FOREIGN KEY ("delegate_id") REFERENCES "employees"("id") ON DELETE CASCADE ON UPDATE CASCADE;

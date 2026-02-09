@@ -3,12 +3,14 @@ import { createDocumentRouter } from '../utils/document-factory.js';
 import { mirvCreateSchema, mirvUpdateSchema, approvalActionSchema } from '../schemas/document.schema.js';
 import { emitToAll } from '../socket/setup.js';
 import * as mirvService from '../services/mirv.service.js';
+import type { MirvCreateDto, MirvUpdateDto } from '../types/dto.js';
 
 const WRITE_ROLES = ['admin', 'manager', 'site_engineer', 'warehouse_supervisor'];
 
 export default createDocumentRouter({
   docType: 'mirv',
   tableName: 'mirv',
+  scopeMapping: { warehouseField: 'warehouseId', projectField: 'projectId', createdByField: 'requestedById' },
 
   list: mirvService.list,
   getById: mirvService.getById,
@@ -16,13 +18,13 @@ export default createDocumentRouter({
   createSchema: mirvCreateSchema,
   createRoles: WRITE_ROLES,
   create: (body, userId) => {
-    const { lines, ...headerData } = body;
-    return mirvService.create(headerData, lines as Record<string, unknown>[], userId);
+    const { lines, ...headerData } = body as MirvCreateDto;
+    return mirvService.create(headerData, lines, userId);
   },
 
   updateSchema: mirvUpdateSchema,
   updateRoles: WRITE_ROLES,
-  update: mirvService.update,
+  update: (id, body) => mirvService.update(id, body as MirvUpdateDto),
 
   actions: [
     {

@@ -3,6 +3,7 @@ import { createDocumentRouter } from '../utils/document-factory.js';
 import { mrfCreateSchema, mrfUpdateSchema } from '../schemas/logistics.schema.js';
 import { emitToAll } from '../socket/setup.js';
 import * as mrfService from '../services/mrf.service.js';
+import type { MrfCreateDto, MrfUpdateDto } from '../types/dto.js';
 
 const WRITE_ROLES = ['admin', 'manager', 'site_engineer', 'warehouse_supervisor'];
 const APPROVE_ROLES = ['admin', 'manager', 'warehouse_supervisor'];
@@ -10,6 +11,7 @@ const APPROVE_ROLES = ['admin', 'manager', 'warehouse_supervisor'];
 export default createDocumentRouter({
   docType: 'mrf',
   tableName: 'material_requisitions',
+  scopeMapping: { projectField: 'projectId', createdByField: 'requestedById' },
 
   list: mrfService.list,
   getById: mrfService.getById,
@@ -17,13 +19,13 @@ export default createDocumentRouter({
   createSchema: mrfCreateSchema,
   createRoles: WRITE_ROLES,
   create: (body, userId) => {
-    const { lines, ...headerData } = body;
-    return mrfService.create(headerData, lines as Record<string, unknown>[], userId);
+    const { lines, ...headerData } = body as MrfCreateDto;
+    return mrfService.create(headerData, lines, userId);
   },
 
   updateSchema: mrfUpdateSchema,
   updateRoles: WRITE_ROLES,
-  update: mrfService.update,
+  update: (id, body) => mrfService.update(id, body as MrfUpdateDto),
 
   actions: [
     {

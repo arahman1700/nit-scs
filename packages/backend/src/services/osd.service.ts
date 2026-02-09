@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { generateDocumentNumber } from './document-number.service.js';
 import { NotFoundError, BusinessRuleError } from '@nit-scs/shared';
+import type { OsdCreateDto, OsdUpdateDto, OsdLineDto, ListParams } from '../types/dto.js';
 
 const LIST_INCLUDE = {
   mrrv: { select: { id: true, mrrvNumber: true } },
@@ -32,19 +33,14 @@ const DETAIL_INCLUDE = {
   resolvedBy: { select: { id: true, fullName: true, email: true } },
 } satisfies Prisma.OsdReportInclude;
 
-export async function list(params: {
-  skip: number;
-  pageSize: number;
-  sortBy: string;
-  sortDir: string;
-  search?: string;
-  status?: string;
-}) {
+export async function list(params: ListParams) {
   const where: Record<string, unknown> = {};
   if (params.search) {
     where.OR = [{ osdNumber: { contains: params.search, mode: 'insensitive' } }];
   }
   if (params.status) where.status = params.status;
+  // Row-level security scope filters
+  if (params.warehouseId) where.warehouseId = params.warehouseId;
 
   const [data, total] = await Promise.all([
     prisma.osdReport.findMany({
@@ -65,7 +61,7 @@ export async function getById(id: string) {
   return osd;
 }
 
-export async function create(headerData: Record<string, unknown>, lines: Record<string, unknown>[]) {
+export async function create(headerData: Omit<OsdCreateDto, 'lines'>, lines: OsdLineDto[]) {
   return prisma.$transaction(async tx => {
     const osdNumber = await generateDocumentNumber('osd');
 
@@ -74,10 +70,10 @@ export async function create(headerData: Record<string, unknown>, lines: Record<
     let totalDamageValue = 0;
 
     for (const line of lines) {
-      const unitCost = (line.unitCost as number) ?? 0;
-      const qtyInvoice = line.qtyInvoice as number;
-      const qtyReceived = line.qtyReceived as number;
-      const qtyDamaged = (line.qtyDamaged as number) ?? 0;
+      const unitCost = line.unitCost ?? 0;
+      const qtyInvoice = line.qtyInvoice;
+      const qtyReceived = line.qtyReceived;
+      const qtyDamaged = line.qtyDamaged ?? 0;
 
       if (qtyReceived > qtyInvoice) totalOverValue += (qtyReceived - qtyInvoice) * unitCost;
       else if (qtyReceived < qtyInvoice) totalShortValue += (qtyInvoice - qtyReceived) * unitCost;
@@ -87,27 +83,27 @@ export async function create(headerData: Record<string, unknown>, lines: Record<
     return tx.osdReport.create({
       data: {
         osdNumber,
-        mrrvId: (headerData.mrrvId as string) ?? null,
-        poNumber: (headerData.poNumber as string) ?? null,
-        supplierId: (headerData.supplierId as string) ?? null,
-        warehouseId: (headerData.warehouseId as string) ?? null,
-        reportDate: new Date(headerData.reportDate as string),
-        reportTypes: headerData.reportTypes as string[],
+        mrrvId: headerData.mrrvId ?? null,
+        poNumber: headerData.poNumber ?? null,
+        supplierId: headerData.supplierId ?? null,
+        warehouseId: headerData.warehouseId ?? null,
+        reportDate: new Date(headerData.reportDate),
+        reportTypes: headerData.reportTypes,
         status: 'draft',
         totalOverValue,
         totalShortValue,
         totalDamageValue,
         osdLines: {
           create: lines.map(line => ({
-            itemId: line.itemId as string,
-            uomId: line.uomId as string,
-            mrrvLineId: (line.mrrvLineId as string) ?? null,
-            qtyInvoice: line.qtyInvoice as number,
-            qtyReceived: line.qtyReceived as number,
-            qtyDamaged: (line.qtyDamaged as number) ?? 0,
-            damageType: (line.damageType as string) ?? null,
-            unitCost: (line.unitCost as number) ?? null,
-            notes: (line.notes as string) ?? null,
+            itemId: line.itemId,
+            uomId: line.uomId,
+            mrrvLineId: line.mrrvLineId ?? null,
+            qtyInvoice: line.qtyInvoice,
+            qtyReceived: line.qtyReceived,
+            qtyDamaged: line.qtyDamaged ?? 0,
+            damageType: line.damageType ?? null,
+            unitCost: line.unitCost ?? null,
+            notes: line.notes ?? null,
           })),
         },
       },
@@ -120,7 +116,7 @@ export async function create(headerData: Record<string, unknown>, lines: Record<
   });
 }
 
-export async function update(id: string, data: Record<string, unknown>) {
+export async function update(id: string, data: OsdUpdateDto) {
   const existing = await prisma.osdReport.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('OSD report', id);
 
@@ -128,7 +124,7 @@ export async function update(id: string, data: Record<string, unknown>) {
     where: { id },
     data: {
       ...data,
-      ...(data.reportDate ? { reportDate: new Date(data.reportDate as string) } : {}),
+      ...(data.reportDate ? { reportDate: new Date(data.reportDate) } : {}),
     },
   });
   return { existing, updated };

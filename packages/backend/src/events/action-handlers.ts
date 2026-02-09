@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma.js';
 import { canTransition } from '@nit-scs/shared';
 import { log } from '../config/logger.js';
 import { sendTemplatedEmail } from '../services/email.service.js';
+import { reserveStock } from '../services/inventory.service.js';
 import type { SystemEvent } from './event-bus.js';
 
 // ── Action Registry ─────────────────────────────────────────────────────
@@ -184,10 +185,10 @@ async function handleReserveStock(params: Record<string, unknown>, event: System
   }
 
   for (const item of items) {
-    await prisma.inventoryLevel.updateMany({
-      where: { itemId: item.itemId, warehouseId: item.warehouseId },
-      data: { qtyReserved: { increment: item.quantity } },
-    });
+    const success = await reserveStock(item.itemId, item.warehouseId, item.quantity);
+    if (!success) {
+      log('warn', `[Action:reserve_stock] Insufficient stock for item ${item.itemId} in warehouse ${item.warehouseId}`);
+    }
   }
 
   log('info', `[Action:reserve_stock] Reserved ${items.length} item(s) for ${event.entityType}:${event.entityId}`);

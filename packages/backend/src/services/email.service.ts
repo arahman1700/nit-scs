@@ -24,6 +24,11 @@ function getFromEmail(): string {
   return `${name} <${email}>`;
 }
 
+// ── Constants ────────────────────────────────────────────────────────────
+
+const MAX_RETRIES = 3;
+const BATCH_SIZE = 50;
+
 // ── Send Templated Email ────────────────────────────────────────────────
 
 export interface SendTemplatedEmailParams {
@@ -39,7 +44,8 @@ export interface SendTemplatedEmailParams {
  *
  * - `to` can be a direct email, an array of emails, or "role:manager" to resolve
  *   all active employees with that system role.
- * - Creates an EmailLog entry (queued → sent/failed).
+ * - Creates an EmailLog entry with the fully rendered HTML (for reliable retries).
+ * - On failure, the email remains queued for retry by processQueuedEmails().
  */
 export async function sendTemplatedEmail(params: SendTemplatedEmailParams): Promise<void> {
   const { templateCode, variables = {}, referenceTable, referenceId } = params;
@@ -62,7 +68,7 @@ export async function sendTemplatedEmail(params: SendTemplatedEmailParams): Prom
     return;
   }
 
-  // Compile template
+  // Compile template with variables ONCE
   const subjectCompiled = Handlebars.compile(template.subject);
   const bodyCompiled = Handlebars.compile(template.bodyHtml);
   const subject = subjectCompiled(variables);
@@ -70,85 +76,125 @@ export async function sendTemplatedEmail(params: SendTemplatedEmailParams): Prom
 
   // Send to each recipient
   for (const email of recipients) {
+    // Store the rendered HTML so retries don't need the original variables
     const emailLog = await prisma.emailLog.create({
       data: {
         templateId: template.id,
         toEmail: email,
         subject,
+        bodyHtml: html,
         status: 'queued',
+        retryCount: 0,
         referenceTable,
         referenceId,
       },
     });
 
-    try {
-      const resend = getResend();
-      const result = await resend.emails.send({
-        from: getFromEmail(),
-        to: email,
-        subject,
-        html,
-      });
-
-      await prisma.emailLog.update({
-        where: { id: emailLog.id },
-        data: {
-          status: 'sent',
-          externalId: result.data?.id,
-          sentAt: new Date(),
-        },
-      });
-
-      log('info', `[Email] Sent '${templateCode}' to ${email} (id: ${result.data?.id})`);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      await prisma.emailLog.update({
-        where: { id: emailLog.id },
-        data: { status: 'failed', error: errorMsg },
-      });
-      log('error', `[Email] Failed to send '${templateCode}' to ${email}: ${errorMsg}`);
-    }
+    // Attempt immediate send
+    await attemptSend(emailLog.id, email, subject, html);
   }
 }
 
 /**
- * Process all queued emails (called by the action handler or a scheduled job).
+ * Attempt to send a single email. Updates the EmailLog record.
+ */
+async function attemptSend(logId: string, toEmail: string, subject: string, html: string): Promise<boolean> {
+  try {
+    const resend = getResend();
+    const result = await resend.emails.send({
+      from: getFromEmail(),
+      to: toEmail,
+      subject,
+      html,
+    });
+
+    await prisma.emailLog.update({
+      where: { id: logId },
+      data: {
+        status: 'sent',
+        externalId: result.data?.id,
+        sentAt: new Date(),
+        retryCount: { increment: 1 },
+      },
+    });
+
+    log('info', `[Email] Sent to ${toEmail} (id: ${result.data?.id})`);
+    return true;
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+
+    // Check if we've exceeded retries
+    const currentLog = await prisma.emailLog.findUnique({
+      where: { id: logId },
+      select: { retryCount: true },
+    });
+
+    const retryCount = (currentLog?.retryCount ?? 0) + 1;
+    const isFinalFailure = retryCount >= MAX_RETRIES;
+
+    await prisma.emailLog.update({
+      where: { id: logId },
+      data: {
+        status: isFinalFailure ? 'failed' : 'queued',
+        error: errorMsg,
+        retryCount,
+      },
+    });
+
+    log(
+      isFinalFailure ? 'error' : 'warn',
+      `[Email] ${isFinalFailure ? 'Permanently failed' : `Retry ${retryCount}/${MAX_RETRIES} queued`} for ${toEmail}: ${errorMsg}`,
+    );
+    return false;
+  }
+}
+
+// ── Process Queued Emails (Retry) ────────────────────────────────────────
+
+/**
+ * Process all queued/failed-but-retriable emails.
+ * Should be called by a cron/scheduler. Uses the stored rendered HTML,
+ * so variables are not needed at retry time.
+ *
+ * Returns the number of successfully sent emails.
  */
 export async function processQueuedEmails(): Promise<number> {
   const queued = await prisma.emailLog.findMany({
-    where: { status: 'queued' },
-    include: { template: true },
-    take: 50,
+    where: {
+      status: 'queued',
+      retryCount: { lt: MAX_RETRIES },
+    },
+    take: BATCH_SIZE,
     orderBy: { createdAt: 'asc' },
   });
 
+  if (queued.length === 0) return 0;
+
+  log('info', `[Email] Processing ${queued.length} queued email(s)`);
   let sent = 0;
+
   for (const emailLog of queued) {
-    if (!emailLog.template) continue;
-
-    try {
-      const resend = getResend();
-      const result = await resend.emails.send({
-        from: getFromEmail(),
-        to: emailLog.toEmail,
-        subject: emailLog.subject,
-        html: emailLog.template.bodyHtml,
-      });
-
+    // Use the stored rendered HTML
+    const html = emailLog.bodyHtml;
+    if (!html) {
+      // Fallback: should not happen, but mark as failed
       await prisma.emailLog.update({
         where: { id: emailLog.id },
-        data: { status: 'sent', externalId: result.data?.id, sentAt: new Date() },
+        data: { status: 'failed', error: 'No rendered HTML stored for retry' },
       });
-      sent++;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      await prisma.emailLog.update({
-        where: { id: emailLog.id },
-        data: { status: 'failed', error: errorMsg },
-      });
+      continue;
+    }
+
+    const success = await attemptSend(emailLog.id, emailLog.toEmail, emailLog.subject, html);
+    if (success) sent++;
+
+    // Small delay between sends to respect rate limits
+    if (queued.length > 10) {
+      await new Promise(r => setTimeout(r, 200));
     }
   }
 
+  log('info', `[Email] Retry batch complete: ${sent}/${queued.length} sent`);
   return sent;
 }
 

@@ -4,6 +4,7 @@ import { generateDocumentNumber } from './document-number.service.js';
 import { addStock } from './inventory.service.js';
 import { NotFoundError, BusinessRuleError } from '@nit-scs/shared';
 import { assertTransition } from '@nit-scs/shared';
+import type { MrvCreateDto, MrvUpdateDto, MrvLineDto, ListParams } from '../types/dto.js';
 
 const DOC_TYPE = 'mrv';
 
@@ -30,19 +31,16 @@ const DETAIL_INCLUDE = {
   originalMirv: { select: { id: true, mirvNumber: true } },
 } satisfies Prisma.MrvInclude;
 
-export async function list(params: {
-  skip: number;
-  pageSize: number;
-  sortBy: string;
-  sortDir: string;
-  search?: string;
-  status?: string;
-}) {
+export async function list(params: ListParams) {
   const where: Record<string, unknown> = {};
   if (params.search) {
     where.OR = [{ mrvNumber: { contains: params.search, mode: 'insensitive' } }];
   }
   if (params.status) where.status = params.status;
+  // Row-level security scope filters (MRV has toWarehouseId, not warehouseId)
+  if (params.toWarehouseId) where.toWarehouseId = params.toWarehouseId;
+  if (params.projectId) where.projectId = params.projectId;
+  if (params.returnedById) where.returnedById = params.returnedById;
 
   const [data, total] = await Promise.all([
     prisma.mrv.findMany({
@@ -63,29 +61,29 @@ export async function getById(id: string) {
   return mrv;
 }
 
-export async function create(headerData: Record<string, unknown>, lines: Record<string, unknown>[], userId: string) {
+export async function create(headerData: Omit<MrvCreateDto, 'lines'>, lines: MrvLineDto[], userId: string) {
   return prisma.$transaction(async tx => {
     const mrvNumber = await generateDocumentNumber('mrv');
     return tx.mrv.create({
       data: {
         mrvNumber,
-        returnType: headerData.returnType as string,
-        projectId: headerData.projectId as string,
-        fromWarehouseId: headerData.fromWarehouseId as string,
-        toWarehouseId: headerData.toWarehouseId as string,
+        returnType: headerData.returnType,
+        projectId: headerData.projectId,
+        fromWarehouseId: headerData.fromWarehouseId ?? null,
+        toWarehouseId: headerData.toWarehouseId,
         returnedById: userId,
-        returnDate: new Date(headerData.returnDate as string),
-        reason: (headerData.reason as string) ?? null,
-        originalMirvId: (headerData.originalMirvId as string) ?? null,
+        returnDate: new Date(headerData.returnDate),
+        reason: headerData.reason ?? null,
+        originalMirvId: headerData.originalMirvId ?? null,
         status: 'draft',
-        notes: (headerData.notes as string) ?? null,
+        notes: headerData.notes ?? null,
         mrvLines: {
           create: lines.map(line => ({
-            itemId: line.itemId as string,
-            qtyReturned: line.qtyReturned as number,
-            uomId: line.uomId as string,
-            condition: line.condition as string,
-            notes: (line.notes as string) ?? null,
+            itemId: line.itemId,
+            qtyReturned: line.qtyReturned,
+            uomId: line.uomId,
+            condition: line.condition,
+            notes: line.notes ?? null,
           })),
         },
       },
@@ -98,7 +96,7 @@ export async function create(headerData: Record<string, unknown>, lines: Record<
   });
 }
 
-export async function update(id: string, data: Record<string, unknown>) {
+export async function update(id: string, data: MrvUpdateDto) {
   const existing = await prisma.mrv.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('MRV', id);
   if (existing.status !== 'draft') throw new BusinessRuleError('Only draft MRVs can be updated');
@@ -107,7 +105,7 @@ export async function update(id: string, data: Record<string, unknown>) {
     where: { id },
     data: {
       ...data,
-      ...(data.returnDate ? { returnDate: new Date(data.returnDate as string) } : {}),
+      ...(data.returnDate ? { returnDate: new Date(data.returnDate) } : {}),
     },
   });
   return { existing, updated };

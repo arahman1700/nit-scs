@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { NotFoundError, BusinessRuleError } from '@nit-scs/shared';
 import { assertTransition } from '@nit-scs/shared';
+import type { RfimUpdateDto, ListParams } from '../types/dto.js';
 
 const DOC_TYPE = 'rfim';
 
@@ -26,19 +27,18 @@ const DETAIL_INCLUDE = {
   inspector: { select: { id: true, fullName: true, email: true } },
 } satisfies Prisma.RfimInclude;
 
-export async function list(params: {
-  skip: number;
-  pageSize: number;
-  sortBy: string;
-  sortDir: string;
-  search?: string;
-  status?: string;
-}) {
+export async function list(params: ListParams) {
   const where: Record<string, unknown> = {};
   if (params.search) {
     where.OR = [{ rfimNumber: { contains: params.search, mode: 'insensitive' } }];
   }
   if (params.status) where.status = params.status;
+  // Row-level security: RFIM scoping is via parent MRRV's warehouse/project
+  if (params.warehouseId)
+    where.mrrv = { ...((where.mrrv as Record<string, unknown>) ?? {}), warehouseId: params.warehouseId };
+  if (params.projectId)
+    where.mrrv = { ...((where.mrrv as Record<string, unknown>) ?? {}), projectId: params.projectId };
+  if (params.inspectorId) where.inspectorId = params.inspectorId;
 
   const [data, total] = await Promise.all([
     prisma.rfim.findMany({
@@ -59,7 +59,7 @@ export async function getById(id: string) {
   return rfim;
 }
 
-export async function update(id: string, data: Record<string, unknown>) {
+export async function update(id: string, data: RfimUpdateDto) {
   const existing = await prisma.rfim.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('RFIM', id);
 

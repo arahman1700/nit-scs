@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma.js';
 import { generateDocumentNumber } from './document-number.service.js';
 import { NotFoundError, BusinessRuleError } from '@nit-scs/shared';
+import type { ShipmentCreateDto, ShipmentUpdateDto, ListParams } from '../types/dto.js';
 
 const LIST_INCLUDE = {
   supplier: { select: { id: true, supplierName: true, supplierCode: true } },
@@ -29,15 +30,7 @@ const DETAIL_INCLUDE = {
   transportJo: { select: { id: true, joNumber: true, status: true } },
 } satisfies Prisma.ShipmentInclude;
 
-export async function list(params: {
-  skip: number;
-  pageSize: number;
-  sortBy: string;
-  sortDir: string;
-  search?: string;
-  status?: string;
-  modeOfShipment?: string;
-}) {
+export async function list(params: ListParams) {
   const where: Record<string, unknown> = {};
   if (params.search) {
     where.OR = [
@@ -49,6 +42,8 @@ export async function list(params: {
   }
   if (params.status) where.status = params.status;
   if (params.modeOfShipment) where.modeOfShipment = params.modeOfShipment;
+  // Row-level security scope filters
+  if (params.projectId) where.projectId = params.projectId;
 
   const [data, total] = await Promise.all([
     prisma.shipment.findMany({
@@ -69,42 +64,42 @@ export async function getById(id: string) {
   return s;
 }
 
-export async function create(headerData: Record<string, unknown>, lines: Record<string, unknown>[]) {
+export async function create(headerData: Omit<ShipmentCreateDto, 'lines'>, lines: ShipmentCreateDto['lines']) {
   return prisma.$transaction(async tx => {
     const shipmentNumber = await generateDocumentNumber('shipment');
     return tx.shipment.create({
       data: {
         shipmentNumber,
-        poNumber: (headerData.poNumber as string) ?? null,
-        supplierId: headerData.supplierId as string,
-        freightForwarderId: (headerData.freightForwarderId as string) ?? null,
-        projectId: (headerData.projectId as string) ?? null,
-        originCountry: (headerData.originCountry as string) ?? null,
-        modeOfShipment: headerData.modeOfShipment as string,
-        portOfLoading: (headerData.portOfLoading as string) ?? null,
-        portOfEntryId: (headerData.portOfEntryId as string) ?? null,
-        destinationWarehouseId: (headerData.destinationWarehouseId as string) ?? null,
-        orderDate: headerData.orderDate ? new Date(headerData.orderDate as string) : null,
-        expectedShipDate: headerData.expectedShipDate ? new Date(headerData.expectedShipDate as string) : null,
+        poNumber: headerData.poNumber ?? null,
+        supplierId: headerData.supplierId,
+        freightForwarderId: headerData.freightForwarderId ?? null,
+        projectId: headerData.projectId ?? null,
+        originCountry: headerData.originCountry ?? null,
+        modeOfShipment: headerData.modeOfShipment,
+        portOfLoading: headerData.portOfLoading ?? null,
+        portOfEntryId: headerData.portOfEntryId ?? null,
+        destinationWarehouseId: headerData.destinationWarehouseId ?? null,
+        orderDate: headerData.orderDate ? new Date(headerData.orderDate) : null,
+        expectedShipDate: headerData.expectedShipDate ? new Date(headerData.expectedShipDate) : null,
         status: 'draft',
-        awbBlNumber: (headerData.awbBlNumber as string) ?? null,
-        containerNumber: (headerData.containerNumber as string) ?? null,
-        vesselFlight: (headerData.vesselFlight as string) ?? null,
-        trackingUrl: (headerData.trackingUrl as string) ?? null,
-        commercialValue: (headerData.commercialValue as number) ?? null,
-        freightCost: (headerData.freightCost as number) ?? null,
-        insuranceCost: (headerData.insuranceCost as number) ?? null,
-        dutiesEstimated: (headerData.dutiesEstimated as number) ?? null,
-        description: (headerData.description as string) ?? null,
-        notes: (headerData.notes as string) ?? null,
+        awbBlNumber: headerData.awbBlNumber ?? null,
+        containerNumber: headerData.containerNumber ?? null,
+        vesselFlight: headerData.vesselFlight ?? null,
+        trackingUrl: headerData.trackingUrl ?? null,
+        commercialValue: headerData.commercialValue ?? null,
+        freightCost: headerData.freightCost ?? null,
+        insuranceCost: headerData.insuranceCost ?? null,
+        dutiesEstimated: headerData.dutiesEstimated ?? null,
+        description: headerData.description ?? null,
+        notes: headerData.notes ?? null,
         shipmentLines: {
           create: lines.map(line => ({
-            itemId: (line.itemId as string) ?? null,
-            description: line.description as string,
-            quantity: line.quantity as number,
-            uomId: (line.uomId as string) ?? null,
-            unitValue: (line.unitValue as number) ?? null,
-            hsCode: (line.hsCode as string) ?? null,
+            itemId: line.itemId ?? null,
+            description: line.description,
+            quantity: line.quantity,
+            uomId: line.uomId ?? null,
+            unitValue: line.unitValue ?? null,
+            hsCode: line.hsCode ?? null,
           })),
         },
       },
@@ -116,11 +111,11 @@ export async function create(headerData: Record<string, unknown>, lines: Record<
   });
 }
 
-export async function update(id: string, data: Record<string, unknown>) {
+export async function update(id: string, data: ShipmentUpdateDto) {
   const existing = await prisma.shipment.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('Shipment', id);
 
-  const dateFields = ['orderDate', 'expectedShipDate', 'actualShipDate', 'etaPort', 'actualArrivalDate'];
+  const dateFields = ['orderDate', 'expectedShipDate', 'actualShipDate', 'etaPort', 'actualArrivalDate'] as const;
   const dateTransforms: Record<string, Date> = {};
   for (const field of dateFields) {
     if (data[field]) dateTransforms[field] = new Date(data[field] as string);

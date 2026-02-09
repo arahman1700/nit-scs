@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { validate } from '../middleware/validate.js';
 import { authenticate } from '../middleware/auth.js';
+import { authRateLimiter } from '../middleware/rate-limiter.js';
 import {
   loginSchema,
   refreshSchema,
@@ -14,20 +15,25 @@ import { sendSuccess, sendError } from '../utils/response.js';
 
 const router = Router();
 
-// POST /api/auth/login
-router.post('/login', validate(loginSchema), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { email, password } = req.body;
-    const result = await authService.login(email, password);
-    sendSuccess(res, result);
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Invalid')) {
-      sendError(res, 401, err.message);
-      return;
+// POST /api/auth/login — 5 attempts per 15 min per IP
+router.post(
+  '/login',
+  authRateLimiter(5, 900),
+  validate(loginSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email, password } = req.body;
+      const result = await authService.login(email, password);
+      sendSuccess(res, result);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('Invalid')) {
+        sendError(res, 401, err.message);
+        return;
+      }
+      next(err);
     }
-    next(err);
-  }
-});
+  },
+);
 
 // POST /api/auth/refresh
 router.post('/refresh', validate(refreshSchema), async (req: Request, res: Response, _next: NextFunction) => {
@@ -70,9 +76,10 @@ router.post(
   },
 );
 
-// POST /api/auth/forgot-password
+// POST /api/auth/forgot-password — 3 attempts per 15 min per IP
 router.post(
   '/forgot-password',
+  authRateLimiter(3, 900),
   validate(forgotPasswordSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -85,9 +92,10 @@ router.post(
   },
 );
 
-// POST /api/auth/reset-password
+// POST /api/auth/reset-password — 5 attempts per 15 min per IP
 router.post(
   '/reset-password',
+  authRateLimiter(5, 900),
   validate(resetPasswordSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -104,9 +112,17 @@ router.post(
   },
 );
 
-// POST /api/auth/logout (client-side token deletion, server just acknowledges)
-router.post('/logout', authenticate, (_req: Request, res: Response) => {
-  sendSuccess(res, { message: 'Logged out successfully' });
+// POST /api/auth/logout — revokes tokens server-side
+router.post('/logout', authenticate, async (req: Request, res: Response) => {
+  try {
+    const accessToken = req.rawAccessToken || '';
+    const { refreshToken } = req.body as { refreshToken?: string };
+    await authService.logout(accessToken, refreshToken);
+    sendSuccess(res, { message: 'Logged out successfully' });
+  } catch {
+    // Even if revocation fails, acknowledge the logout
+    sendSuccess(res, { message: 'Logged out successfully' });
+  }
 });
 
 export default router;

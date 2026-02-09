@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken, type JwtPayload } from '../utils/jwt.js';
+import { isTokenBlacklisted } from '../services/auth.service.js';
 import { sendError } from '../utils/response.js';
 
 declare global {
@@ -7,6 +8,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: JwtPayload;
+      rawAccessToken?: string;
     }
   }
 }
@@ -22,8 +24,32 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
   const token = authHeader.slice(7);
 
   try {
-    req.user = verifyAccessToken(token);
-    next();
+    const payload = verifyAccessToken(token);
+
+    // Check Redis blacklist for revoked tokens (async, non-blocking)
+    if (payload.jti) {
+      isTokenBlacklisted(payload.jti)
+        .then(blacklisted => {
+          if (blacklisted) {
+            sendError(res, 401, 'Token has been revoked');
+            return;
+          }
+          req.user = payload;
+          req.rawAccessToken = token;
+          next();
+        })
+        .catch(() => {
+          // Redis failure — allow request (graceful degradation)
+          req.user = payload;
+          req.rawAccessToken = token;
+          next();
+        });
+    } else {
+      // No jti (legacy token) — allow but mark for future revocation
+      req.user = payload;
+      req.rawAccessToken = token;
+      next();
+    }
   } catch {
     sendError(res, 401, 'Invalid or expired token');
   }

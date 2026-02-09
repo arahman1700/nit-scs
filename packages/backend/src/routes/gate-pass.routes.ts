@@ -1,6 +1,7 @@
 import { createDocumentRouter } from '../utils/document-factory.js';
 import { gatePassCreateSchema, gatePassUpdateSchema } from '../schemas/logistics.schema.js';
 import * as gatePassService from '../services/gate-pass.service.js';
+import type { GatePassCreateDto, GatePassUpdateDto } from '../types/dto.js';
 
 const WRITE_ROLES = ['admin', 'warehouse_supervisor', 'warehouse_staff'];
 const APPROVE_ROLES = ['admin', 'warehouse_supervisor'];
@@ -8,6 +9,7 @@ const APPROVE_ROLES = ['admin', 'warehouse_supervisor'];
 export default createDocumentRouter({
   docType: 'gate-passes',
   tableName: 'gate_passes',
+  scopeMapping: { warehouseField: 'warehouseId', projectField: 'projectId', createdByField: 'issuedById' },
 
   list: gatePassService.list,
   getById: gatePassService.getById,
@@ -15,13 +17,13 @@ export default createDocumentRouter({
   createSchema: gatePassCreateSchema,
   createRoles: WRITE_ROLES,
   create: (body, userId) => {
-    const { items, ...headerData } = body;
-    return gatePassService.create(headerData, items as Record<string, unknown>[], userId);
+    const { items, ...headerData } = body as GatePassCreateDto;
+    return gatePassService.create(headerData, items, userId);
   },
 
   updateSchema: gatePassUpdateSchema,
   updateRoles: WRITE_ROLES,
-  update: gatePassService.update,
+  update: (id, body) => gatePassService.update(id, body as GatePassUpdateDto),
 
   actions: [
     {

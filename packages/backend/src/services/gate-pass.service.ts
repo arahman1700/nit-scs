@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma.js';
 import { generateDocumentNumber } from './document-number.service.js';
 import { NotFoundError, BusinessRuleError } from '@nit-scs/shared';
 import { assertTransition } from '@nit-scs/shared';
+import type { GatePassCreateDto, GatePassUpdateDto, GatePassItemDto, ListParams } from '../types/dto.js';
 
 const DOC_TYPE = 'gate_pass';
 
@@ -26,15 +27,7 @@ const DETAIL_INCLUDE = {
   issuedBy: { select: { id: true, fullName: true, email: true } },
 } satisfies Prisma.GatePassInclude;
 
-export async function list(params: {
-  skip: number;
-  pageSize: number;
-  sortBy: string;
-  sortDir: string;
-  search?: string;
-  status?: string;
-  passType?: string;
-}) {
+export async function list(params: ListParams) {
   const where: Record<string, unknown> = {};
   if (params.search) {
     where.OR = [
@@ -45,6 +38,10 @@ export async function list(params: {
   }
   if (params.status) where.status = params.status;
   if (params.passType) where.passType = params.passType;
+  // Row-level security scope filters
+  if (params.warehouseId) where.warehouseId = params.warehouseId;
+  if (params.projectId) where.projectId = params.projectId;
+  if (params.issuedById) where.issuedById = params.issuedById;
 
   const [data, total] = await Promise.all([
     prisma.gatePass.findMany({
@@ -65,32 +62,32 @@ export async function getById(id: string) {
   return gp;
 }
 
-export async function create(headerData: Record<string, unknown>, items: Record<string, unknown>[], userId: string) {
+export async function create(headerData: Omit<GatePassCreateDto, 'items'>, items: GatePassItemDto[], userId: string) {
   return prisma.$transaction(async tx => {
     const gatePassNumber = await generateDocumentNumber('gatepass');
     return tx.gatePass.create({
       data: {
         gatePassNumber,
-        passType: headerData.passType as string,
-        mirvId: (headerData.mirvId as string) ?? null,
-        projectId: (headerData.projectId as string) ?? null,
-        warehouseId: headerData.warehouseId as string,
-        vehicleNumber: headerData.vehicleNumber as string,
-        driverName: headerData.driverName as string,
-        driverIdNumber: (headerData.driverIdNumber as string) ?? null,
-        destination: headerData.destination as string,
-        purpose: (headerData.purpose as string) ?? null,
-        issueDate: new Date(headerData.issueDate as string),
-        validUntil: headerData.validUntil ? new Date(headerData.validUntil as string) : null,
+        passType: headerData.passType,
+        mirvId: headerData.mirvId ?? null,
+        projectId: headerData.projectId ?? null,
+        warehouseId: headerData.warehouseId,
+        vehicleNumber: headerData.vehicleNumber,
+        driverName: headerData.driverName,
+        driverIdNumber: headerData.driverIdNumber ?? null,
+        destination: headerData.destination,
+        purpose: headerData.purpose ?? null,
+        issueDate: new Date(headerData.issueDate),
+        validUntil: headerData.validUntil ? new Date(headerData.validUntil) : null,
         status: 'draft',
         issuedById: userId,
-        notes: (headerData.notes as string) ?? null,
+        notes: headerData.notes ?? null,
         gatePassItems: {
           create: items.map(item => ({
-            itemId: item.itemId as string,
-            quantity: item.quantity as number,
-            uomId: item.uomId as string,
-            description: (item.description as string) ?? null,
+            itemId: item.itemId,
+            quantity: item.quantity,
+            uomId: item.uomId,
+            description: item.description ?? null,
           })),
         },
       },
@@ -102,7 +99,7 @@ export async function create(headerData: Record<string, unknown>, items: Record<
   });
 }
 
-export async function update(id: string, data: Record<string, unknown>) {
+export async function update(id: string, data: GatePassUpdateDto) {
   const existing = await prisma.gatePass.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('Gate Pass', id);
   if (existing.status !== 'draft') throw new BusinessRuleError('Only draft Gate Passes can be updated');
@@ -111,8 +108,8 @@ export async function update(id: string, data: Record<string, unknown>) {
     where: { id },
     data: {
       ...data,
-      ...(data.issueDate ? { issueDate: new Date(data.issueDate as string) } : {}),
-      ...(data.validUntil ? { validUntil: new Date(data.validUntil as string) } : {}),
+      ...(data.issueDate ? { issueDate: new Date(data.issueDate) } : {}),
+      ...(data.validUntil ? { validUntil: new Date(data.validUntil) } : {}),
     },
   });
   return { existing, updated };

@@ -6,6 +6,7 @@ import { reserveStock, consumeReservation, releaseReservation } from './inventor
 import { NotFoundError, BusinessRuleError } from '@nit-scs/shared';
 import { assertTransition } from '@nit-scs/shared';
 import type { Server as SocketIOServer } from 'socket.io';
+import type { MirvCreateDto, MirvUpdateDto, MirvLineDto, ListParams } from '../types/dto.js';
 
 const DOC_TYPE = 'mirv';
 
@@ -30,14 +31,7 @@ const DETAIL_INCLUDE = {
   issuedBy: { select: { id: true, fullName: true, email: true } },
 } satisfies Prisma.MirvInclude;
 
-export async function list(params: {
-  skip: number;
-  pageSize: number;
-  sortBy: string;
-  sortDir: string;
-  search?: string;
-  status?: string;
-}) {
+export async function list(params: ListParams) {
   const where: Record<string, unknown> = {};
   if (params.search) {
     where.OR = [
@@ -46,6 +40,10 @@ export async function list(params: {
     ];
   }
   if (params.status) where.status = params.status;
+  // Row-level security scope filters
+  if (params.warehouseId) where.warehouseId = params.warehouseId;
+  if (params.projectId) where.projectId = params.projectId;
+  if (params.requestedById) where.requestedById = params.requestedById;
 
   const [data, total] = await Promise.all([
     prisma.mirv.findMany({
@@ -66,39 +64,44 @@ export async function getById(id: string) {
   return mirv;
 }
 
-export async function create(headerData: Record<string, unknown>, lines: Record<string, unknown>[], userId: string) {
+export async function create(headerData: Omit<MirvCreateDto, 'lines'>, lines: MirvLineDto[], userId: string) {
   const mirv = await prisma.$transaction(async tx => {
     const mirvNumber = await generateDocumentNumber('mirv');
 
+    // Batch-fetch item costs to avoid N+1 queries
+    const itemIds = lines.map(l => l.itemId);
+    const items = await tx.item.findMany({
+      where: { id: { in: itemIds } },
+      select: { id: true, standardCost: true },
+    });
+    const costMap = new Map(items.map(i => [i.id, Number(i.standardCost ?? 0)]));
+
     let estimatedValue = 0;
     for (const line of lines) {
-      const item = await tx.item.findUnique({
-        where: { id: line.itemId as string },
-        select: { standardCost: true },
-      });
-      if (item?.standardCost) {
-        estimatedValue += Number(item.standardCost) * (line.qtyRequested as number);
+      const cost = costMap.get(line.itemId) ?? 0;
+      if (cost > 0) {
+        estimatedValue += cost * line.qtyRequested;
       }
     }
 
     return tx.mirv.create({
       data: {
         mirvNumber,
-        projectId: headerData.projectId as string,
-        warehouseId: headerData.warehouseId as string,
-        locationOfWork: (headerData.locationOfWork as string) ?? null,
+        projectId: headerData.projectId,
+        warehouseId: headerData.warehouseId,
+        locationOfWork: headerData.locationOfWork ?? null,
         requestedById: userId,
-        requestDate: new Date(headerData.requestDate as string),
-        requiredDate: headerData.requiredDate ? new Date(headerData.requiredDate as string) : null,
-        priority: (headerData.priority as string) ?? 'normal',
+        requestDate: new Date(headerData.requestDate),
+        requiredDate: headerData.requiredDate ? new Date(headerData.requiredDate) : null,
+        priority: headerData.priority ?? 'normal',
         estimatedValue,
         status: 'draft',
-        notes: (headerData.notes as string) ?? null,
+        notes: headerData.notes ?? null,
         mirvLines: {
           create: lines.map(line => ({
-            itemId: line.itemId as string,
-            qtyRequested: line.qtyRequested as number,
-            notes: (line.notes as string) ?? null,
+            itemId: line.itemId,
+            qtyRequested: line.qtyRequested,
+            notes: line.notes ?? null,
           })),
         },
       },
@@ -112,7 +115,7 @@ export async function create(headerData: Record<string, unknown>, lines: Record<
   return mirv;
 }
 
-export async function update(id: string, data: Record<string, unknown>) {
+export async function update(id: string, data: MirvUpdateDto) {
   const existing = await prisma.mirv.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('MIRV', id);
   if (existing.status !== 'draft') throw new BusinessRuleError('Only draft MIRVs can be updated');
@@ -121,8 +124,8 @@ export async function update(id: string, data: Record<string, unknown>) {
     where: { id },
     data: {
       ...data,
-      ...(data.requestDate ? { requestDate: new Date(data.requestDate as string) } : {}),
-      ...(data.requiredDate ? { requiredDate: new Date(data.requiredDate as string) } : {}),
+      ...(data.requestDate ? { requestDate: new Date(data.requestDate) } : {}),
+      ...(data.requiredDate ? { requiredDate: new Date(data.requiredDate) } : {}),
     },
   });
   return { existing, updated };

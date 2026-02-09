@@ -4,6 +4,7 @@ import { generateDocumentNumber } from './document-number.service.js';
 import { addStock } from './inventory.service.js';
 import { NotFoundError, BusinessRuleError } from '@nit-scs/shared';
 import { assertTransition } from '@nit-scs/shared';
+import type { MrrvCreateDto, MrrvUpdateDto, MrrvLineDto, ListParams } from '../types/dto.js';
 
 const DOC_TYPE = 'mrrv';
 
@@ -31,14 +32,7 @@ const DETAIL_INCLUDE = {
   osdReports: true,
 } satisfies Prisma.MrrvInclude;
 
-export async function list(params: {
-  skip: number;
-  pageSize: number;
-  sortBy: string;
-  sortDir: string;
-  search?: string;
-  status?: string;
-}) {
+export async function list(params: ListParams) {
   const where: Record<string, unknown> = {};
   if (params.search) {
     where.OR = [
@@ -47,6 +41,10 @@ export async function list(params: {
     ];
   }
   if (params.status) where.status = params.status;
+  // Row-level security scope filters
+  if (params.warehouseId) where.warehouseId = params.warehouseId;
+  if (params.projectId) where.projectId = params.projectId;
+  if (params.receivedById) where.receivedById = params.receivedById;
 
   const [data, total] = await Promise.all([
     prisma.mrrv.findMany({
@@ -71,47 +69,47 @@ export async function getById(id: string) {
   return mrrv;
 }
 
-export async function create(headerData: Record<string, unknown>, lines: Record<string, unknown>[], userId: string) {
+export async function create(headerData: Omit<MrrvCreateDto, 'lines'>, lines: MrrvLineDto[], userId: string) {
   const mrrv = await prisma.$transaction(async tx => {
     const mrrvNumber = await generateDocumentNumber('mrrv');
 
     let totalValue = 0;
     for (const line of lines) {
       if (line.unitCost && line.qtyReceived) {
-        totalValue += (line.unitCost as number) * (line.qtyReceived as number);
+        totalValue += line.unitCost * line.qtyReceived;
       }
     }
 
-    const hasOsd = lines.some(l => l.qtyDamaged && (l.qtyDamaged as number) > 0);
+    const hasOsd = lines.some(l => l.qtyDamaged && l.qtyDamaged > 0);
 
     const created = await tx.mrrv.create({
       data: {
         mrrvNumber,
-        supplierId: headerData.supplierId as string,
-        poNumber: (headerData.poNumber as string) ?? null,
-        warehouseId: headerData.warehouseId as string,
-        projectId: (headerData.projectId as string) ?? null,
+        supplierId: headerData.supplierId,
+        poNumber: headerData.poNumber ?? null,
+        warehouseId: headerData.warehouseId,
+        projectId: headerData.projectId ?? null,
         receivedById: userId,
-        receiveDate: new Date(headerData.receiveDate as string),
-        invoiceNumber: (headerData.invoiceNumber as string) ?? null,
-        deliveryNote: (headerData.deliveryNote as string) ?? null,
-        rfimRequired: (headerData.rfimRequired as boolean) ?? false,
+        receiveDate: new Date(headerData.receiveDate),
+        invoiceNumber: headerData.invoiceNumber ?? null,
+        deliveryNote: headerData.deliveryNote ?? null,
+        rfimRequired: headerData.rfimRequired ?? false,
         hasOsd,
         totalValue,
         status: 'draft',
-        notes: (headerData.notes as string) ?? null,
+        notes: headerData.notes ?? null,
         mrrvLines: {
           create: lines.map(line => ({
-            itemId: line.itemId as string,
-            qtyOrdered: (line.qtyOrdered as number) ?? null,
-            qtyReceived: line.qtyReceived as number,
-            qtyDamaged: (line.qtyDamaged as number) ?? 0,
-            uomId: line.uomId as string,
-            unitCost: (line.unitCost as number) ?? null,
-            condition: (line.condition as string) ?? 'good',
-            storageLocation: (line.storageLocation as string) ?? null,
-            expiryDate: line.expiryDate ? new Date(line.expiryDate as string) : null,
-            notes: (line.notes as string) ?? null,
+            itemId: line.itemId,
+            qtyOrdered: line.qtyOrdered ?? null,
+            qtyReceived: line.qtyReceived,
+            qtyDamaged: line.qtyDamaged ?? 0,
+            uomId: line.uomId,
+            unitCost: line.unitCost ?? null,
+            condition: line.condition ?? 'good',
+            storageLocation: line.storageLocation ?? null,
+            expiryDate: line.expiryDate ? new Date(line.expiryDate) : null,
+            notes: line.notes ?? null,
           })),
         },
       },
@@ -128,7 +126,7 @@ export async function create(headerData: Record<string, unknown>, lines: Record<
   return mrrv;
 }
 
-export async function update(id: string, data: Record<string, unknown>) {
+export async function update(id: string, data: MrrvUpdateDto) {
   const existing = await prisma.mrrv.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('MRRV', id);
   if (existing.status !== 'draft') {
@@ -139,7 +137,7 @@ export async function update(id: string, data: Record<string, unknown>) {
     where: { id },
     data: {
       ...data,
-      ...(data.receiveDate ? { receiveDate: new Date(data.receiveDate as string) } : {}),
+      ...(data.receiveDate ? { receiveDate: new Date(data.receiveDate) } : {}),
     },
   });
 

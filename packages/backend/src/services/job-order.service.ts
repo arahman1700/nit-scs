@@ -5,6 +5,7 @@ import { submitForApproval } from './approval.service.js';
 import { NotFoundError, BusinessRuleError } from '@nit-scs/shared';
 import { assertTransition } from '@nit-scs/shared';
 import type { Server as SocketIOServer } from 'socket.io';
+import type { JoCreateDto, JoUpdateDto, ListParams } from '../types/dto.js';
 
 const DOC_TYPE = 'jo';
 
@@ -40,16 +41,7 @@ const DETAIL_INCLUDE = {
   shipments: { select: { id: true, shipmentNumber: true, status: true } },
 } satisfies Prisma.JobOrderInclude;
 
-export async function list(params: {
-  skip: number;
-  pageSize: number;
-  sortBy: string;
-  sortDir: string;
-  search?: string;
-  status?: string;
-  joType?: string;
-  projectId?: string;
-}) {
+export async function list(params: ListParams) {
   const where: Record<string, unknown> = {};
   if (params.search) {
     where.OR = [
@@ -60,6 +52,8 @@ export async function list(params: {
   if (params.status) where.status = params.status;
   if (params.joType) where.joType = params.joType;
   if (params.projectId) where.projectId = params.projectId;
+  // Row-level security scope filters
+  if (params.requestedById) where.requestedById = params.requestedById;
 
   const [data, total] = await Promise.all([
     prisma.jobOrder.findMany({
@@ -80,7 +74,7 @@ export async function getById(id: string) {
   return jo;
 }
 
-export async function create(body: Record<string, unknown>, userId: string) {
+export async function create(body: JoCreateDto, userId: string) {
   const { transportDetails, rentalDetails, generatorDetails, scrapDetails, equipmentLines, ...headerData } = body;
 
   const jo = await prisma.$transaction(async tx => {
@@ -88,59 +82,59 @@ export async function create(body: Record<string, unknown>, userId: string) {
     const created = await tx.jobOrder.create({
       data: {
         joNumber,
-        joType: headerData.joType as string,
-        entityId: (headerData.entityId as string) ?? null,
-        projectId: headerData.projectId as string,
-        supplierId: (headerData.supplierId as string) ?? null,
+        joType: headerData.joType,
+        entityId: headerData.entityId ?? null,
+        projectId: headerData.projectId,
+        supplierId: headerData.supplierId ?? null,
         requestedById: userId,
-        requestDate: new Date(headerData.requestDate as string),
-        requiredDate: headerData.requiredDate ? new Date(headerData.requiredDate as string) : null,
-        priority: (headerData.priority as string) ?? 'normal',
-        description: headerData.description as string,
-        notes: (headerData.notes as string) ?? null,
-        totalAmount: (headerData.totalAmount as number) ?? 0,
+        requestDate: new Date(headerData.requestDate),
+        requiredDate: headerData.requiredDate ? new Date(headerData.requiredDate) : null,
+        priority: headerData.priority ?? 'normal',
+        description: headerData.description,
+        notes: headerData.notes ?? null,
+        totalAmount: headerData.totalAmount ?? 0,
         status: 'draft',
       },
     });
 
     // Type-specific subtables
     if (transportDetails && headerData.joType === 'transport') {
-      const td = transportDetails as Record<string, unknown>;
+      const td = transportDetails;
       await tx.joTransportDetail.create({
         data: {
           jobOrderId: created.id,
-          pickupLocation: td.pickupLocation as string,
-          pickupLocationUrl: (td.pickupLocationUrl as string) ?? null,
-          pickupContactName: (td.pickupContactName as string) ?? null,
-          pickupContactPhone: (td.pickupContactPhone as string) ?? null,
-          deliveryLocation: td.deliveryLocation as string,
-          deliveryLocationUrl: (td.deliveryLocationUrl as string) ?? null,
-          deliveryContactName: (td.deliveryContactName as string) ?? null,
-          deliveryContactPhone: (td.deliveryContactPhone as string) ?? null,
-          cargoType: td.cargoType as string,
-          cargoWeightTons: (td.cargoWeightTons as number) ?? null,
-          numberOfTrailers: (td.numberOfTrailers as number) ?? null,
-          numberOfTrips: (td.numberOfTrips as number) ?? null,
-          includeLoadingEquipment: (td.includeLoadingEquipment as boolean) ?? false,
-          loadingEquipmentType: (td.loadingEquipmentType as string) ?? null,
-          insuranceRequired: (td.insuranceRequired as boolean) ?? false,
-          materialPriceSar: (td.materialPriceSar as number) ?? null,
+          pickupLocation: td.pickupLocation,
+          pickupLocationUrl: td.pickupLocationUrl ?? null,
+          pickupContactName: td.pickupContactName ?? null,
+          pickupContactPhone: td.pickupContactPhone ?? null,
+          deliveryLocation: td.deliveryLocation,
+          deliveryLocationUrl: td.deliveryLocationUrl ?? null,
+          deliveryContactName: td.deliveryContactName ?? null,
+          deliveryContactPhone: td.deliveryContactPhone ?? null,
+          cargoType: td.cargoType,
+          cargoWeightTons: td.cargoWeightTons ?? null,
+          numberOfTrailers: td.numberOfTrailers ?? null,
+          numberOfTrips: td.numberOfTrips ?? null,
+          includeLoadingEquipment: td.includeLoadingEquipment ?? false,
+          loadingEquipmentType: td.loadingEquipmentType ?? null,
+          insuranceRequired: td.insuranceRequired ?? false,
+          materialPriceSar: td.materialPriceSar ?? null,
         },
       });
     }
 
     if (rentalDetails && (headerData.joType === 'rental_monthly' || headerData.joType === 'rental_daily')) {
-      const rd = rentalDetails as Record<string, unknown>;
+      const rd = rentalDetails;
       await tx.joRentalDetail.create({
         data: {
           jobOrderId: created.id,
-          rentalStartDate: new Date(rd.rentalStartDate as string),
-          rentalEndDate: new Date(rd.rentalEndDate as string),
-          monthlyRate: (rd.monthlyRate as number) ?? null,
-          dailyRate: (rd.dailyRate as number) ?? null,
-          withOperator: (rd.withOperator as boolean) ?? false,
-          overtimeHours: (rd.overtimeHours as number) ?? 0,
-          overtimeApproved: (rd.overtimeApproved as boolean) ?? false,
+          rentalStartDate: new Date(rd.rentalStartDate),
+          rentalEndDate: new Date(rd.rentalEndDate),
+          monthlyRate: rd.monthlyRate ?? null,
+          dailyRate: rd.dailyRate ?? null,
+          withOperator: rd.withOperator ?? false,
+          overtimeHours: rd.overtimeHours ?? 0,
+          overtimeApproved: rd.overtimeApproved ?? false,
         },
       });
     }
@@ -149,43 +143,43 @@ export async function create(body: Record<string, unknown>, userId: string) {
       generatorDetails &&
       (headerData.joType === 'generator_rental' || headerData.joType === 'generator_maintenance')
     ) {
-      const gd = generatorDetails as Record<string, unknown>;
+      const gd = generatorDetails;
       await tx.joGeneratorDetail.create({
         data: {
           jobOrderId: created.id,
-          generatorId: (gd.generatorId as string) ?? null,
-          capacityKva: (gd.capacityKva as number) ?? null,
-          maintenanceType: (gd.maintenanceType as string) ?? null,
-          issueDescription: (gd.issueDescription as string) ?? null,
-          shiftStartTime: gd.shiftStartTime ? new Date(`1970-01-01T${gd.shiftStartTime as string}`) : null,
+          generatorId: gd.generatorId ?? null,
+          capacityKva: gd.capacityKva ?? null,
+          maintenanceType: gd.maintenanceType ?? null,
+          issueDescription: gd.issueDescription ?? null,
+          shiftStartTime: gd.shiftStartTime ? new Date(`1970-01-01T${gd.shiftStartTime}`) : null,
         },
       });
     }
 
     if (scrapDetails && headerData.joType === 'scrap') {
-      const sd = scrapDetails as Record<string, unknown>;
+      const sd = scrapDetails;
       await tx.joScrapDetail.create({
         data: {
           jobOrderId: created.id,
-          scrapType: sd.scrapType as string,
-          scrapWeightTons: sd.scrapWeightTons as number,
-          scrapDescription: (sd.scrapDescription as string) ?? null,
-          scrapDestination: (sd.scrapDestination as string) ?? null,
-          materialPriceSar: (sd.materialPriceSar as number) ?? null,
+          scrapType: sd.scrapType,
+          scrapWeightTons: sd.scrapWeightTons,
+          scrapDescription: sd.scrapDescription ?? null,
+          scrapDestination: sd.scrapDestination ?? null,
+          materialPriceSar: sd.materialPriceSar ?? null,
         },
       });
     }
 
-    if (equipmentLines && (equipmentLines as unknown[]).length > 0 && headerData.joType === 'equipment') {
+    if (equipmentLines && equipmentLines.length > 0 && headerData.joType === 'equipment') {
       await tx.joEquipmentLine.createMany({
-        data: (equipmentLines as Record<string, unknown>[]).map(line => ({
+        data: equipmentLines.map(line => ({
           jobOrderId: created.id,
-          equipmentTypeId: line.equipmentTypeId as string,
-          quantity: line.quantity as number,
-          withOperator: (line.withOperator as boolean) ?? false,
-          siteLocation: (line.siteLocation as string) ?? null,
-          dailyRate: (line.dailyRate as number) ?? null,
-          durationDays: (line.durationDays as number) ?? null,
+          equipmentTypeId: line.equipmentTypeId,
+          quantity: line.quantity,
+          withOperator: line.withOperator ?? false,
+          siteLocation: line.siteLocation ?? null,
+          dailyRate: line.dailyRate ?? null,
+          durationDays: line.durationDays ?? null,
         })),
       });
     }
@@ -212,7 +206,7 @@ export async function create(body: Record<string, unknown>, userId: string) {
   return full!;
 }
 
-export async function update(id: string, data: Record<string, unknown>) {
+export async function update(id: string, data: JoUpdateDto) {
   const existing = await prisma.jobOrder.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('Job Order', id);
   if (existing.status !== 'draft') throw new BusinessRuleError('Only draft Job Orders can be updated');
@@ -221,8 +215,8 @@ export async function update(id: string, data: Record<string, unknown>) {
     where: { id },
     data: {
       ...data,
-      ...(data.requestDate ? { requestDate: new Date(data.requestDate as string) } : {}),
-      ...(data.requiredDate ? { requiredDate: new Date(data.requiredDate as string) } : {}),
+      ...(data.requestDate ? { requestDate: new Date(data.requestDate) } : {}),
+      ...(data.requiredDate ? { requiredDate: new Date(data.requiredDate) } : {}),
     },
   });
   return { existing, updated };

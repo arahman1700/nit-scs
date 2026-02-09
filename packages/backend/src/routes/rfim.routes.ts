@@ -3,12 +3,16 @@ import { createDocumentRouter } from '../utils/document-factory.js';
 import { rfimUpdateSchema } from '../schemas/document.schema.js';
 import { emitToDocument } from '../socket/setup.js';
 import * as rfimService from '../services/rfim.service.js';
+import type { RfimUpdateDto } from '../types/dto.js';
 
 const ROLES = ['admin', 'manager', 'qc_officer', 'warehouse_supervisor'];
 
 export default createDocumentRouter({
   docType: 'rfim',
   tableName: 'rfim',
+  // RFIM scoping: list filtering is via mrrv.warehouseId (handled in service),
+  // getById/action access check uses inspectorId as creator field
+  scopeMapping: { warehouseField: 'warehouseId', createdByField: 'inspectorId' },
 
   list: rfimService.list,
   getById: rfimService.getById,
@@ -17,7 +21,7 @@ export default createDocumentRouter({
   createRoles: ROLES,
   updateSchema: rfimUpdateSchema,
   updateRoles: ROLES,
-  update: rfimService.update,
+  update: (id, body) => rfimService.update(id, body as RfimUpdateDto),
 
   actions: [
     {

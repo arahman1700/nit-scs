@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import type { ZodSchema } from 'zod';
-import { sendSuccess, sendCreated } from './response.js';
+import { sendSuccess, sendCreated, sendError } from './response.js';
 import { authenticate } from '../middleware/auth.js';
 import { requireRole } from '../middleware/rbac.js';
 import { paginate } from '../middleware/pagination.js';
 import { validate } from '../middleware/validate.js';
 import { auditAndEmit } from './routeHelpers.js';
+import { buildScopeFilter, canAccessRecord, type ScopeFieldMapping } from './scope-filter.js';
 
 /**
  * Configuration for a single status-transition action route.
@@ -81,6 +82,10 @@ export interface DocumentRouteConfig {
 
   // ── Status-transition actions ────────────────
   actions?: ActionConfig[];
+
+  // ── Row-level security ────────────────────────
+  /** Field mapping for row-level scope filtering. If omitted, defaults to warehouseId/projectId. */
+  scopeMapping?: ScopeFieldMapping;
 }
 
 /**
@@ -94,10 +99,15 @@ export function createDocumentRouter(config: DocumentRouteConfig): Router {
   const router = Router();
   const defaultSort = config.defaultSort ?? 'createdAt';
 
+  const scopeMapping = config.scopeMapping ?? { warehouseField: 'warehouseId', projectField: 'projectId' };
+
   // ── GET / — List with pagination ─────────────────────────────────
   router.get('/', authenticate, paginate(defaultSort), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { skip, pageSize, sortBy, sortDir, search, page } = req.pagination!;
+
+      // Row-level security: inject scope filter based on user role
+      const scopeFilter = buildScopeFilter(req.user!, scopeMapping);
 
       // Collect extra query filters (status, etc.)
       const extra: Record<string, unknown> = {};
@@ -113,6 +123,7 @@ export function createDocumentRouter(config: DocumentRouteConfig): Router {
         sortDir,
         search,
         ...extra,
+        ...scopeFilter,
       });
 
       sendSuccess(res, data, { page, pageSize, total });
@@ -125,6 +136,11 @@ export function createDocumentRouter(config: DocumentRouteConfig): Router {
   router.get('/:id', authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const record = await config.getById(req.params.id as string);
+      // Row-level security: verify user has access to this record
+      if (!canAccessRecord(req.user!, record as Record<string, unknown>, scopeMapping)) {
+        sendError(res, 403, 'You do not have access to this record');
+        return;
+      }
       sendSuccess(res, record);
     } catch (err) {
       next(err);
@@ -192,6 +208,14 @@ export function createDocumentRouter(config: DocumentRouteConfig): Router {
       router.post(`/:id/${action.path}`, ...mw, async (req: Request, res: Response, next: NextFunction) => {
         try {
           const id = req.params.id as string;
+
+          // Row-level security: verify user has access before performing action
+          const existingRecord = await config.getById(id);
+          if (!canAccessRecord(req.user!, existingRecord as Record<string, unknown>, scopeMapping)) {
+            sendError(res, 403, 'You do not have access to this record');
+            return;
+          }
+
           const result = await action.handler(id, req);
 
           const socketEvent = action.socketEvent ?? `${config.docType}:${action.path}`;

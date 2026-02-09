@@ -3,12 +3,14 @@ import { createDocumentRouter } from '../utils/document-factory.js';
 import { mrvCreateSchema, mrvUpdateSchema } from '../schemas/document.schema.js';
 import { emitToAll } from '../socket/setup.js';
 import * as mrvService from '../services/mrv.service.js';
+import type { MrvCreateDto, MrvUpdateDto } from '../types/dto.js';
 
 const WRITE_ROLES = ['admin', 'manager', 'site_engineer', 'warehouse_supervisor'];
 
 export default createDocumentRouter({
   docType: 'mrv',
   tableName: 'mrv',
+  scopeMapping: { warehouseField: 'toWarehouseId', projectField: 'projectId', createdByField: 'returnedById' },
 
   list: mrvService.list,
   getById: mrvService.getById,
@@ -16,13 +18,13 @@ export default createDocumentRouter({
   createSchema: mrvCreateSchema,
   createRoles: WRITE_ROLES,
   create: (body, userId) => {
-    const { lines, ...headerData } = body;
-    return mrvService.create(headerData, lines as Record<string, unknown>[], userId);
+    const { lines, ...headerData } = body as MrvCreateDto;
+    return mrvService.create(headerData, lines, userId);
   },
 
   updateSchema: mrvUpdateSchema,
   updateRoles: WRITE_ROLES,
-  update: mrvService.update,
+  update: (id, body) => mrvService.update(id, body as MrvUpdateDto),
 
   actions: [
     {

@@ -2,6 +2,12 @@ import { prisma } from '../utils/prisma.js';
 import { generateDocumentNumber } from './document-number.service.js';
 import { createAuditLog } from './audit.service.js';
 import { log } from '../config/logger.js';
+import { invalidateCachePattern } from '../utils/cache.js';
+
+/** Invalidate dashboard caches that depend on inventory data */
+async function invalidateInventoryCache(): Promise<void> {
+  await invalidateCachePattern('dashboard:*');
+}
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -26,30 +32,137 @@ export interface ConsumptionResult {
   totalCost: number;
 }
 
+/** Reference for non-MIRV stock consumption (e.g. stock transfers) */
+export interface ConsumptionReference {
+  mirvLineId?: string;
+  referenceType?: string;
+  referenceId?: string;
+}
+
+// ── Optimistic Locking Helper ────────────────────────────────────────────
+
+const MAX_RETRIES = 3;
+
+/**
+ * Update InventoryLevel with optimistic locking using the `version` field.
+ * Retries up to MAX_RETRIES times on version conflict.
+ */
+async function updateLevelWithVersion(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  itemId: string,
+  warehouseId: string,
+  updateData: Record<string, unknown>,
+): Promise<void> {
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const level = await tx.inventoryLevel.findUnique({
+      where: { itemId_warehouseId: { itemId, warehouseId } },
+    });
+
+    if (!level) {
+      throw new Error(`InventoryLevel not found for item ${itemId}, warehouse ${warehouseId}`);
+    }
+
+    const result = await tx.inventoryLevel.updateMany({
+      where: {
+        itemId,
+        warehouseId,
+        version: level.version,
+      },
+      data: {
+        ...updateData,
+        version: { increment: 1 },
+      },
+    });
+
+    if (result.count > 0) return; // success
+
+    if (attempt === MAX_RETRIES - 1) {
+      throw new Error(
+        `Optimistic lock failure after ${MAX_RETRIES} retries for item ${itemId}, warehouse ${warehouseId}`,
+      );
+    }
+
+    log('warn', `[Inventory] Optimistic lock retry ${attempt + 1} for item ${itemId}`);
+  }
+}
+
+// ── Low-Stock Alert Check ────────────────────────────────────────────────
+
+/**
+ * Check if inventory has dropped below minLevel or reorderPoint.
+ * Sets alertSent=true to avoid repeated alerts.
+ */
+async function checkLowStockAlert(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  itemId: string,
+  warehouseId: string,
+): Promise<void> {
+  const level = await tx.inventoryLevel.findUnique({
+    where: { itemId_warehouseId: { itemId, warehouseId } },
+    include: {
+      item: { select: { itemCode: true, itemDescription: true } },
+      warehouse: { select: { warehouseCode: true, warehouseName: true } },
+    },
+  });
+
+  if (!level || level.alertSent) return;
+
+  const available = Number(level.qtyOnHand) - Number(level.qtyReserved);
+  const minLevel = level.minLevel ? Number(level.minLevel) : null;
+  const reorderPoint = level.reorderPoint ? Number(level.reorderPoint) : null;
+
+  let alertType: 'critical' | 'warning' | null = null;
+
+  if (minLevel !== null && available <= minLevel) {
+    alertType = 'critical';
+  } else if (reorderPoint !== null && available <= reorderPoint) {
+    alertType = 'warning';
+  }
+
+  if (alertType) {
+    await tx.inventoryLevel.update({
+      where: { itemId_warehouseId: { itemId, warehouseId } },
+      data: { alertSent: true },
+    });
+
+    log(
+      alertType === 'critical' ? 'warn' : 'info',
+      `[Inventory] Low stock ${alertType}: ${level.item.itemCode} (${level.item.itemDescription}) ` +
+        `at ${level.warehouse.warehouseCode} — available: ${available}, ` +
+        `${alertType === 'critical' ? `minLevel: ${minLevel}` : `reorderPoint: ${reorderPoint}`}`,
+    );
+  }
+}
+
 // ── Add Stock ───────────────────────────────────────────────────────────
 
 export async function addStock(params: AddStockParams): Promise<void> {
   const { itemId, warehouseId, qty, unitCost, supplierId, mrrvLineId, expiryDate, performedById } = params;
 
   await prisma.$transaction(async tx => {
-    // 1. Upsert InventoryLevel - increment qtyOnHand
-    await tx.inventoryLevel.upsert({
-      where: {
-        itemId_warehouseId: { itemId, warehouseId },
-      },
-      create: {
-        itemId,
-        warehouseId,
-        qtyOnHand: qty,
-        qtyReserved: 0,
-        lastMovementDate: new Date(),
-      },
-      update: {
+    // 1. Upsert InventoryLevel - increment qtyOnHand with version bump
+    const existing = await tx.inventoryLevel.findUnique({
+      where: { itemId_warehouseId: { itemId, warehouseId } },
+    });
+
+    if (existing) {
+      await updateLevelWithVersion(tx, itemId, warehouseId, {
         qtyOnHand: { increment: qty },
         lastMovementDate: new Date(),
-        alertSent: false,
-      },
-    });
+        alertSent: false, // Reset alert on new stock
+      });
+    } else {
+      await tx.inventoryLevel.create({
+        data: {
+          itemId,
+          warehouseId,
+          qtyOnHand: qty,
+          qtyReserved: 0,
+          lastMovementDate: new Date(),
+          version: 0,
+        },
+      });
+    }
 
     // 2. Create InventoryLot
     const lotNumber = await generateDocumentNumber('lot');
@@ -89,13 +202,16 @@ export async function addStock(params: AddStockParams): Promise<void> {
   });
 
   log('info', `[Inventory] Added ${qty} units of item ${itemId} to warehouse ${warehouseId}`);
+
+  // Invalidate cached dashboard data that depends on inventory
+  await invalidateInventoryCache();
 }
 
 // ── Reserve Stock (FIFO) ────────────────────────────────────────────────
 
 export async function reserveStock(itemId: string, warehouseId: string, qty: number): Promise<boolean> {
   return prisma.$transaction(async tx => {
-    // 1. Check availability
+    // 1. Check availability with optimistic lock read
     const level = await tx.inventoryLevel.findUnique({
       where: { itemId_warehouseId: { itemId, warehouseId } },
     });
@@ -105,12 +221,9 @@ export async function reserveStock(itemId: string, warehouseId: string, qty: num
     const available = Number(level.qtyOnHand) - Number(level.qtyReserved);
     if (available < qty) return false;
 
-    // 2. Increment qtyReserved in InventoryLevel
-    await tx.inventoryLevel.update({
-      where: { itemId_warehouseId: { itemId, warehouseId } },
-      data: {
-        qtyReserved: { increment: qty },
-      },
+    // 2. Increment qtyReserved with optimistic locking
+    await updateLevelWithVersion(tx, itemId, warehouseId, {
+      qtyReserved: { increment: qty },
     });
 
     // 3. Reserve from oldest lots first (FIFO by receiptDate)
@@ -144,7 +257,6 @@ export async function reserveStock(itemId: string, warehouseId: string, qty: num
     }
 
     if (remaining > 0) {
-      // Should not happen since we checked availability, but safeguard
       throw new Error('Insufficient lot availability for reservation');
     }
 
@@ -156,12 +268,9 @@ export async function reserveStock(itemId: string, warehouseId: string, qty: num
 
 export async function releaseReservation(itemId: string, warehouseId: string, qty: number): Promise<void> {
   await prisma.$transaction(async tx => {
-    // 1. Decrement qtyReserved in InventoryLevel
-    await tx.inventoryLevel.update({
-      where: { itemId_warehouseId: { itemId, warehouseId } },
-      data: {
-        qtyReserved: { decrement: qty },
-      },
+    // 1. Decrement qtyReserved with optimistic locking
+    await updateLevelWithVersion(tx, itemId, warehouseId, {
+      qtyReserved: { decrement: qty },
     });
 
     // 2. Release from oldest lots first (FIFO)
@@ -207,14 +316,11 @@ export async function consumeReservation(
   mirvLineId: string,
 ): Promise<ConsumptionResult> {
   return prisma.$transaction(async tx => {
-    // 1. Decrement both qtyOnHand AND qtyReserved in InventoryLevel
-    await tx.inventoryLevel.update({
-      where: { itemId_warehouseId: { itemId, warehouseId } },
-      data: {
-        qtyOnHand: { decrement: qty },
-        qtyReserved: { decrement: qty },
-        lastMovementDate: new Date(),
-      },
+    // 1. Decrement both qtyOnHand AND qtyReserved with optimistic locking
+    await updateLevelWithVersion(tx, itemId, warehouseId, {
+      qtyOnHand: { decrement: qty },
+      qtyReserved: { decrement: qty },
+      lastMovementDate: new Date(),
     });
 
     // 2. Consume from oldest lots (FIFO)
@@ -241,7 +347,6 @@ export async function consumeReservation(
       const unitCost = Number(lot.unitCost ?? 0);
       totalCost += toConsume * unitCost;
 
-      // Decrement availableQty and reservedQty on lot
       const newAvailable = lotAvailable - toConsume;
       const newReserved = Math.max(0, Number(lot.reservedQty ?? 0) - toConsume);
 
@@ -268,17 +373,24 @@ export async function consumeReservation(
       remaining -= toConsume;
     }
 
+    // 4. Check low-stock alerts
+    await checkLowStockAlert(tx, itemId, warehouseId);
+
     return { totalCost };
   });
 }
 
 // ── Deduct Stock (without reservation) ──────────────────────────────────
 
+/**
+ * Deduct stock directly (no prior reservation).
+ * Supports both MIRV-linked and generic reference consumptions (e.g. stock transfers).
+ */
 export async function deductStock(
   itemId: string,
   warehouseId: string,
   qty: number,
-  mirvLineId: string,
+  ref: ConsumptionReference,
 ): Promise<ConsumptionResult> {
   return prisma.$transaction(async tx => {
     // 1. Check availability
@@ -290,13 +402,10 @@ export async function deductStock(
       throw new Error(`Insufficient stock for item ${itemId} in warehouse ${warehouseId}`);
     }
 
-    // 2. Decrement qtyOnHand only (no reservation involved)
-    await tx.inventoryLevel.update({
-      where: { itemId_warehouseId: { itemId, warehouseId } },
-      data: {
-        qtyOnHand: { decrement: qty },
-        lastMovementDate: new Date(),
-      },
+    // 2. Decrement qtyOnHand with optimistic locking
+    await updateLevelWithVersion(tx, itemId, warehouseId, {
+      qtyOnHand: { decrement: qty },
+      lastMovementDate: new Date(),
     });
 
     // 3. Consume from oldest lots (FIFO)
@@ -333,11 +442,13 @@ export async function deductStock(
         },
       });
 
-      // Create LotConsumption record
+      // Create LotConsumption record with proper reference
       await tx.lotConsumption.create({
         data: {
           lotId: lot.id,
-          mirvLineId,
+          mirvLineId: ref.mirvLineId ?? null,
+          referenceType: ref.referenceType ?? null,
+          referenceId: ref.referenceId ?? null,
           quantity: toConsume,
           unitCost: unitCost > 0 ? unitCost : null,
           consumptionDate: new Date(),
@@ -346,6 +457,13 @@ export async function deductStock(
 
       remaining -= toConsume;
     }
+
+    // 4. Check low-stock alerts
+    await checkLowStockAlert(tx, itemId, warehouseId);
+
+    // 5. Invalidate cached dashboard data
+    // Note: done inside tx callback but invalidation is best-effort
+    await invalidateInventoryCache();
 
     return { totalCost };
   });

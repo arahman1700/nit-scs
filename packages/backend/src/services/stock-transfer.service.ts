@@ -4,6 +4,7 @@ import { generateDocumentNumber } from './document-number.service.js';
 import { addStock, deductStock } from './inventory.service.js';
 import { NotFoundError, BusinessRuleError } from '@nit-scs/shared';
 import { assertTransition } from '@nit-scs/shared';
+import type { StockTransferCreateDto, StockTransferUpdateDto, StockTransferLineDto, ListParams } from '../types/dto.js';
 
 const DOC_TYPE = 'stock_transfer';
 
@@ -34,21 +35,22 @@ const DETAIL_INCLUDE = {
   gatePass: { select: { id: true, gatePassNumber: true, status: true } },
 } satisfies Prisma.StockTransferInclude;
 
-export async function list(params: {
-  skip: number;
-  pageSize: number;
-  sortBy: string;
-  sortDir: string;
-  search?: string;
-  status?: string;
-  transferType?: string;
-}) {
+export async function list(params: ListParams) {
   const where: Record<string, unknown> = {};
+  const andClauses: Record<string, unknown>[] = [];
   if (params.search) {
-    where.OR = [{ transferNumber: { contains: params.search, mode: 'insensitive' } }];
+    andClauses.push({ OR: [{ transferNumber: { contains: params.search, mode: 'insensitive' } }] });
   }
   if (params.status) where.status = params.status;
   if (params.transferType) where.transferType = params.transferType;
+  // Row-level security: warehouse users see transfers involving their warehouse (source OR destination)
+  if (params.fromWarehouseId) {
+    andClauses.push({
+      OR: [{ fromWarehouseId: params.fromWarehouseId }, { toWarehouseId: params.fromWarehouseId }],
+    });
+  }
+  if (params.requestedById) where.requestedById = params.requestedById;
+  if (andClauses.length > 0) where.AND = andClauses;
 
   const [data, total] = await Promise.all([
     prisma.stockTransfer.findMany({
@@ -69,27 +71,31 @@ export async function getById(id: string) {
   return st;
 }
 
-export async function create(headerData: Record<string, unknown>, lines: Record<string, unknown>[], userId: string) {
+export async function create(
+  headerData: Omit<StockTransferCreateDto, 'lines'>,
+  lines: StockTransferLineDto[],
+  userId: string,
+) {
   return prisma.$transaction(async tx => {
     const transferNumber = await generateDocumentNumber('stock_transfer');
     return tx.stockTransfer.create({
       data: {
         transferNumber,
-        transferType: headerData.transferType as string,
-        fromWarehouseId: headerData.fromWarehouseId as string,
-        toWarehouseId: headerData.toWarehouseId as string,
-        fromProjectId: (headerData.fromProjectId as string) ?? null,
-        toProjectId: (headerData.toProjectId as string) ?? null,
+        transferType: headerData.transferType,
+        fromWarehouseId: headerData.fromWarehouseId,
+        toWarehouseId: headerData.toWarehouseId,
+        fromProjectId: headerData.fromProjectId ?? null,
+        toProjectId: headerData.toProjectId ?? null,
         requestedById: userId,
-        transferDate: new Date(headerData.transferDate as string),
+        transferDate: new Date(headerData.transferDate),
         status: 'draft',
-        notes: (headerData.notes as string) ?? null,
+        notes: headerData.notes ?? null,
         stockTransferLines: {
           create: lines.map(line => ({
-            itemId: line.itemId as string,
-            quantity: line.quantity as number,
-            uomId: line.uomId as string,
-            condition: (line.condition as string) ?? 'good',
+            itemId: line.itemId,
+            quantity: line.quantity,
+            uomId: line.uomId,
+            condition: line.condition ?? 'good',
           })),
         },
       },
@@ -102,7 +108,7 @@ export async function create(headerData: Record<string, unknown>, lines: Record<
   });
 }
 
-export async function update(id: string, data: Record<string, unknown>) {
+export async function update(id: string, data: StockTransferUpdateDto) {
   const existing = await prisma.stockTransfer.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('Stock Transfer', id);
   if (existing.status !== 'draft') throw new BusinessRuleError('Only draft Stock Transfers can be updated');
@@ -111,7 +117,7 @@ export async function update(id: string, data: Record<string, unknown>) {
     where: { id },
     data: {
       ...data,
-      ...(data.transferDate ? { transferDate: new Date(data.transferDate as string) } : {}),
+      ...(data.transferDate ? { transferDate: new Date(data.transferDate) } : {}),
     },
   });
   return { existing, updated };
@@ -140,7 +146,10 @@ export async function ship(id: string) {
   assertTransition(DOC_TYPE, st.status, 'shipped');
 
   for (const line of st.stockTransferLines) {
-    await deductStock(line.itemId, st.fromWarehouseId, Number(line.quantity), line.id);
+    await deductStock(line.itemId, st.fromWarehouseId, Number(line.quantity), {
+      referenceType: 'stock_transfer_line',
+      referenceId: line.id,
+    });
   }
 
   const updated = await prisma.stockTransfer.update({

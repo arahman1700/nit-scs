@@ -50,6 +50,7 @@ model City {
   suppliers  Supplier[]
   warehouses Warehouse[]
 
+  @@index([regionId], map: "idx_cities_region")
   @@map("cities")
 }
 
@@ -318,6 +319,18 @@ model Employee {
   savedReports     SavedReport[]
   systemSettings   SystemSetting[]
 
+  // Reverse relations — v2 additions
+  refreshTokens    RefreshToken[]     @relation("EmployeeRefreshTokens")
+  docComments      DocumentComment[]  @relation("EmployeeDocComments")
+  approvalSteps    ApprovalStep[]     @relation("EmployeeApprovalSteps")
+  delegationsOut   DelegationRule[]   @relation("EmployeeDelegationsOut")
+  delegationsIn    DelegationRule[]   @relation("EmployeeDelegationsIn")
+
+  @@index([systemRole], map: "idx_employees_system_role")
+  @@index([isActive], map: "idx_employees_active")
+  @@index([assignedProjectId], map: "idx_employees_project")
+  @@index([assignedWarehouseId], map: "idx_employees_warehouse")
+  @@index([department], map: "idx_employees_department")
   @@map("employees")
 }
 
@@ -549,6 +562,8 @@ model Mrrv {
   @@index([status], map: "idx_mrrv_status")
   @@index([supplierId], map: "idx_mrrv_supplier")
   @@index([mrrvNumber], map: "idx_mrrv_number")
+  @@index([warehouseId], map: "idx_mrrv_warehouse")
+  @@index([createdAt], map: "idx_mrrv_created")
   @@map("mrrv")
 }
 
@@ -601,6 +616,8 @@ model Rfim {
   mrrv      Mrrv      @relation(fields: [mrrvId], references: [id], onDelete: Restrict)
   inspector Employee? @relation("RfimInspector", fields: [inspectorId], references: [id], onDelete: SetNull)
 
+  @@index([mrrvId], map: "idx_rfim_mrrv")
+  @@index([status], map: "idx_rfim_status")
   @@map("rfim")
 }
 
@@ -641,6 +658,8 @@ model OsdReport {
   // Reverse relations
   osdLines OsdLine[]
 
+  @@index([mrrvId], map: "idx_osd_mrrv")
+  @@index([status], map: "idx_osd_status")
   @@map("osd_reports")
 }
 
@@ -716,6 +735,8 @@ model Mirv {
   @@index([projectId], map: "idx_mirv_project")
   @@index([warehouseId], map: "idx_mirv_warehouse")
   @@index([mirvNumber], map: "idx_mirv_number")
+  @@index([requestedById], map: "idx_mirv_requested_by")
+  @@index([createdAt], map: "idx_mirv_created")
   @@map("mirv")
 }
 
@@ -777,6 +798,8 @@ model Mrv {
   stockTransfers StockTransfer[] @relation("StockTransferSourceMrv")
 
   @@index([mrvNumber], map: "idx_mrv_number")
+  @@index([status], map: "idx_mrv_status")
+  @@index([projectId], map: "idx_mrv_project")
   @@map("mrv")
 }
 
@@ -837,6 +860,8 @@ model GatePass {
   stockTransfers StockTransfer[]
 
   @@index([status], map: "idx_gate_passes_status")
+  @@index([warehouseId], map: "idx_gate_passes_warehouse")
+  @@index([createdAt], map: "idx_gate_passes_created")
   @@map("gate_passes")
 }
 
@@ -897,6 +922,9 @@ model MaterialRequisition {
   mrfLines MrfLine[]
   mirvs    Mirv[]
 
+  @@index([projectId], map: "idx_mrf_project")
+  @@index([status], map: "idx_mrf_status")
+  @@index([requestedById], map: "idx_mrf_requested_by")
   @@map("material_requisitions")
 }
 
@@ -967,6 +995,9 @@ model StockTransfer {
   stockTransferLines StockTransferLine[]
 
   @@index([status], map: "idx_stock_transfers_status")
+  @@index([fromWarehouseId], map: "idx_stock_transfers_from_wh")
+  @@index([toWarehouseId], map: "idx_stock_transfers_to_wh")
+  @@index([createdAt], map: "idx_stock_transfers_created")
   @@map("stock_transfers")
 }
 
@@ -1042,6 +1073,10 @@ model JobOrder {
   @@index([projectId], map: "idx_job_orders_project")
   @@index([requestDate(sort: Desc)], map: "idx_job_orders_date")
   @@index([joNumber], map: "idx_jo_number")
+  @@index([supplierId], map: "idx_job_orders_supplier")
+  @@index([requestedById], map: "idx_job_orders_requested_by")
+  @@index([status], map: "idx_job_orders_status")
+  @@index([createdAt], map: "idx_job_orders_created")
   @@map("job_orders")
 }
 
@@ -1218,6 +1253,8 @@ model InventoryLevel {
   reorderPoint     Decimal?  @map("reorder_point") @db.Decimal(12, 3)
   lastMovementDate DateTime? @map("last_movement_date") @db.Timestamptz
   alertSent        Boolean?  @default(false) @map("alert_sent")
+  /// Optimistic locking version counter
+  version          Int       @default(0)
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
@@ -1261,6 +1298,7 @@ model InventoryLot {
 
   @@index([itemId, warehouseId, status], map: "idx_inventory_lots_item")
   @@index([itemId, warehouseId, receiptDate], map: "idx_inventory_lots_fifo")
+  @@index([status], map: "idx_inventory_lots_status")
   @@map("inventory_lots")
 }
 
@@ -1268,7 +1306,10 @@ model InventoryLot {
 model LotConsumption {
   id              String   @id @default(uuid()) @db.Uuid
   lotId           String   @map("lot_id") @db.Uuid
-  mirvLineId      String   @map("mirv_line_id") @db.Uuid
+  mirvLineId      String?  @map("mirv_line_id") @db.Uuid
+  /// Generic reference for non-MIRV consumptions (e.g. stock_transfer_line)
+  referenceType   String?  @map("reference_type") @db.VarChar(50)
+  referenceId     String?  @map("reference_id") @db.Uuid
   /// CHECK: quantity > 0
   quantity        Decimal  @db.Decimal(12, 3)
   unitCost        Decimal? @map("unit_cost") @db.Decimal(15, 2)
@@ -1276,8 +1317,9 @@ model LotConsumption {
 
   // Relations
   lot      InventoryLot @relation(fields: [lotId], references: [id], onDelete: Restrict)
-  mirvLine MirvLine     @relation(fields: [mirvLineId], references: [id], onDelete: Restrict)
+  mirvLine MirvLine?    @relation(fields: [mirvLineId], references: [id], onDelete: Restrict)
 
+  @@index([referenceType, referenceId], map: "idx_lot_consumption_ref")
   @@map("lot_consumptions")
 }
 
@@ -1373,6 +1415,9 @@ model Shipment {
   shipmentLines   ShipmentLine[]
 
   @@index([status], map: "idx_shipments_status")
+  @@index([supplierId], map: "idx_shipments_supplier")
+  @@index([projectId], map: "idx_shipments_project")
+  @@index([createdAt], map: "idx_shipments_created")
   @@map("shipments")
 }
 
@@ -1502,6 +1547,8 @@ model AuditLog {
   performedBy Employee? @relation(fields: [performedById], references: [id], onDelete: SetNull)
 
   @@index([tableName, recordId], map: "idx_audit_log_table")
+  @@index([performedAt(sort: Desc)], map: "idx_audit_log_date")
+  @@index([performedById], map: "idx_audit_log_user")
   @@map("audit_log")
 }
 
@@ -1522,6 +1569,7 @@ model Notification {
   recipient Employee @relation(fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, isRead], map: "idx_notifications_recipient")
+  @@index([createdAt(sort: Desc)], map: "idx_notifications_date")
   @@map("notifications")
 }
 
@@ -1743,8 +1791,12 @@ model EmailLog {
   templateId     String?   @map("template_id") @db.Uuid
   toEmail        String    @map("to_email") @db.VarChar(255)
   subject        String    @db.VarChar(500)
+  /// Rendered HTML body (stored for reliable retries)
+  bodyHtml       String?   @map("body_html")
   /// CHECK: status IN ('queued', 'sent', 'delivered', 'bounced', 'failed')
   status         String    @default("queued") @db.VarChar(20)
+  /// Number of delivery attempts
+  retryCount     Int       @default(0) @map("retry_count")
   /// Resend message ID for tracking
   externalId     String?   @map("external_id") @db.VarChar(200)
   error          String?
@@ -1837,4 +1889,106 @@ model SavedReport {
 
   @@index([ownerId], map: "idx_reports_owner")
   @@map("saved_reports")
+}
+
+// ############################################################################
+// SECTION 13: TOKEN MANAGEMENT (1 model) — Added in v2
+// ############################################################################
+
+/// Server-side refresh-token store for revocation support
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique @db.VarChar(500)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  user Employee @relation("EmployeeRefreshTokens", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_refresh_tokens_user")
+  @@index([expiresAt], map: "idx_refresh_tokens_expiry")
+  @@map("refresh_tokens")
+}
+
+// ############################################################################
+// SECTION 14: DOCUMENT COMMENTS (1 model) — Added in v2
+// ############################################################################
+
+/// Comments on any document (MRRV, MIRV, JO, etc.)
+model DocumentComment {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// Document type key (e.g. 'mrrv', 'mirv', 'jo', 'osd')
+  documentType String   @map("document_type") @db.VarChar(50)
+  documentId   String   @map("document_id") @db.Uuid
+  authorId     String   @map("author_id") @db.Uuid
+  content      String
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  author Employee @relation("EmployeeDocComments", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([documentType, documentId], map: "idx_doc_comments_doc")
+  @@index([authorId], map: "idx_doc_comments_author")
+  @@map("document_comments")
+}
+
+// ############################################################################
+// SECTION 15: MULTI-LEVEL APPROVAL (1 model) — Added in v2
+// ############################################################################
+
+/// Tracks each step in a multi-level approval chain
+model ApprovalStep {
+  id           String    @id @default(uuid()) @db.Uuid
+  /// Document type key (e.g. 'mirv', 'jo', 'mrf')
+  documentType String    @map("document_type") @db.VarChar(50)
+  documentId   String    @map("document_id") @db.Uuid
+  /// Sequential approval level (1, 2, 3, ...)
+  level        Int
+  approverRole String    @map("approver_role") @db.VarChar(50)
+  approverId   String?   @map("approver_id") @db.Uuid
+  /// 'pending' | 'approved' | 'rejected' | 'skipped'
+  status       String    @default("pending") @db.VarChar(20)
+  notes        String?
+  decidedAt    DateTime? @map("decided_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  approver Employee? @relation("EmployeeApprovalSteps", fields: [approverId], references: [id], onDelete: SetNull)
+
+  @@index([documentType, documentId], map: "idx_approval_steps_doc")
+  @@index([approverId], map: "idx_approval_steps_approver")
+  @@index([status], map: "idx_approval_steps_status")
+  @@map("approval_steps")
+}
+
+// ############################################################################
+// SECTION 16: DELEGATION RULES (1 model) — Added in v2
+// ############################################################################
+
+/// Approval delegation rules (out-of-office coverage)
+model DelegationRule {
+  id          String    @id @default(uuid()) @db.Uuid
+  /// The employee delegating authority
+  delegatorId String    @map("delegator_id") @db.Uuid
+  /// The employee receiving delegated authority
+  delegateId  String    @map("delegate_id") @db.Uuid
+  startDate   DateTime  @map("start_date") @db.Date
+  endDate     DateTime  @map("end_date") @db.Date
+  /// Scope: 'all' | 'mirv' | 'jo' | 'mrf' etc.
+  scope       String    @default("all") @db.VarChar(50)
+  isActive    Boolean   @default(true) @map("is_active")
+  notes       String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  delegator Employee @relation("EmployeeDelegationsOut", fields: [delegatorId], references: [id], onDelete: Cascade)
+  delegate  Employee @relation("EmployeeDelegationsIn", fields: [delegateId], references: [id], onDelete: Cascade)
+
+  @@index([delegatorId], map: "idx_delegation_delegator")
+  @@index([delegateId], map: "idx_delegation_delegate")
+  @@index([startDate, endDate], map: "idx_delegation_dates")
+  @@map("delegation_rules")
 }

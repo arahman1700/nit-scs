@@ -9,6 +9,7 @@ import { sendSuccess, sendCreated } from '../utils/response.js';
 import { auditAndEmit } from '../utils/routeHelpers.js';
 import { emitToRole } from '../socket/setup.js';
 import * as joService from '../services/job-order.service.js';
+import type { JoCreateDto, JoUpdateDto } from '../types/dto.js';
 
 const WRITE_ROLES = ['admin', 'manager', 'logistics_coordinator', 'site_engineer'];
 const APPROVE_ROLES = ['admin', 'manager'];
@@ -18,6 +19,7 @@ const COORD_ROLES = ['admin', 'manager', 'logistics_coordinator'];
 const baseRouter = createDocumentRouter({
   docType: 'job-orders',
   tableName: 'job_orders',
+  scopeMapping: { projectField: 'projectId', createdByField: 'requestedById' },
 
   list: joService.list,
   getById: joService.getById,
@@ -25,7 +27,7 @@ const baseRouter = createDocumentRouter({
   createSchema: joCreateSchema,
   createRoles: WRITE_ROLES,
   create: async (body, userId, req) => {
-    const result = await joService.create(body, userId);
+    const result = await joService.create(body as JoCreateDto, userId);
     // Emit role-specific notification for new JO
     const io = req.app.get('io') as SocketIOServer | undefined;
     if (io) {
@@ -40,7 +42,7 @@ const baseRouter = createDocumentRouter({
 
   updateSchema: joUpdateSchema,
   updateRoles: WRITE_ROLES,
-  update: joService.update,
+  update: (id, body) => joService.update(id, body as JoUpdateDto),
 
   actions: [
     {

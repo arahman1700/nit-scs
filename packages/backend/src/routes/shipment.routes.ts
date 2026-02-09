@@ -13,6 +13,7 @@ import { validate } from '../middleware/validate.js';
 import { sendSuccess, sendCreated } from '../utils/response.js';
 import { auditAndEmit, emitDocumentEvent } from '../utils/routeHelpers.js';
 import * as shipmentService from '../services/shipment.service.js';
+import type { ShipmentCreateDto, ShipmentUpdateDto } from '../types/dto.js';
 
 const ROLES = ['admin', 'manager', 'logistics_coordinator', 'freight_forwarder'];
 
@@ -20,6 +21,7 @@ const ROLES = ['admin', 'manager', 'logistics_coordinator', 'freight_forwarder']
 const baseRouter = createDocumentRouter({
   docType: 'shipments',
   tableName: 'shipments',
+  scopeMapping: { projectField: 'projectId' },
 
   list: shipmentService.list,
   getById: shipmentService.getById,
@@ -27,13 +29,13 @@ const baseRouter = createDocumentRouter({
   createSchema: shipmentCreateSchema,
   createRoles: ROLES,
   create: body => {
-    const { lines, ...headerData } = body;
-    return shipmentService.create(headerData, lines as Record<string, unknown>[]);
+    const { lines, ...headerData } = body as ShipmentCreateDto;
+    return shipmentService.create(headerData, lines);
   },
 
   updateSchema: shipmentUpdateSchema,
   updateRoles: ROLES,
-  update: shipmentService.update,
+  update: (id, body) => shipmentService.update(id, body as ShipmentUpdateDto),
 
   actions: [
     {

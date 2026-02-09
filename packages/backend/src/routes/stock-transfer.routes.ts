@@ -3,12 +3,15 @@ import { createDocumentRouter } from '../utils/document-factory.js';
 import { stockTransferCreateSchema, stockTransferUpdateSchema } from '../schemas/logistics.schema.js';
 import { emitToAll } from '../socket/setup.js';
 import * as stService from '../services/stock-transfer.service.js';
+import type { StockTransferCreateDto, StockTransferUpdateDto } from '../types/dto.js';
 
 const ROLES = ['admin', 'manager', 'warehouse_supervisor'];
 
 export default createDocumentRouter({
   docType: 'stock-transfers',
   tableName: 'stock_transfers',
+  // StockTransfer uses fromWarehouseId/toWarehouseId — the service handles OR logic
+  scopeMapping: { warehouseField: 'fromWarehouseId', createdByField: 'requestedById' },
 
   list: stService.list,
   getById: stService.getById,
@@ -16,13 +19,13 @@ export default createDocumentRouter({
   createSchema: stockTransferCreateSchema,
   createRoles: ROLES,
   create: (body, userId) => {
-    const { lines, ...headerData } = body;
-    return stService.create(headerData, lines as Record<string, unknown>[], userId);
+    const { lines, ...headerData } = body as StockTransferCreateDto;
+    return stService.create(headerData, lines, userId);
   },
 
   updateSchema: stockTransferUpdateSchema,
   updateRoles: ROLES,
-  update: stService.update,
+  update: (id, body) => stService.update(id, body as StockTransferUpdateDto),
 
   actions: [
     {
