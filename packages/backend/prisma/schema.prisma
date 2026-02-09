@@ -326,6 +326,10 @@ model Employee {
   delegationsOut   DelegationRule[]   @relation("EmployeeDelegationsOut")
   delegationsIn    DelegationRule[]   @relation("EmployeeDelegationsIn")
 
+  // Reverse relations — v3 additions
+  attachments      Attachment[]       @relation("AttachmentUploadedBy")
+  userViews        UserView[]         @relation("UserViewOwner")
+
   @@index([systemRole], map: "idx_employees_system_role")
   @@index([isActive], map: "idx_employees_active")
   @@index([assignedProjectId], map: "idx_employees_project")
@@ -1991,4 +1995,53 @@ model DelegationRule {
   @@index([delegateId], map: "idx_delegation_delegate")
   @@index([startDate, endDate], map: "idx_delegation_dates")
   @@map("delegation_rules")
+}
+
+// ############################################################################
+// SECTION: FILE ATTACHMENTS
+// ############################################################################
+
+/// Polymorphic file attachments for any entity (entityType + recordId)
+model Attachment {
+  id           String    @id @default(uuid()) @db.Uuid
+  entityType   String    @map("entity_type") @db.VarChar(50)
+  recordId     String    @map("record_id") @db.Uuid
+  fileName     String    @map("file_name") @db.VarChar(500)
+  originalName String    @map("original_name") @db.VarChar(500)
+  fileSize     Int       @map("file_size")
+  mimeType     String    @map("mime_type") @db.VarChar(100)
+  storagePath  String    @map("storage_path") @db.VarChar(1000)
+  uploadedById String    @map("uploaded_by_id") @db.Uuid
+  uploadedAt   DateTime  @default(now()) @map("uploaded_at") @db.Timestamptz
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  uploadedBy Employee @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([entityType, recordId], map: "idx_attachment_entity")
+  @@index([uploadedById], map: "idx_attachment_uploader")
+  @@map("attachments")
+}
+
+// ############################################################################
+// SECTION: USER VIEW PREFERENCES
+// ############################################################################
+
+/// Saved grid/list view configurations per user per entity
+model UserView {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  entityType String   @map("entity_type") @db.VarChar(50)
+  name       String   @default("Default") @db.VarChar(100)
+  viewType   String   @default("grid") @map("view_type") @db.VarChar(20)
+  config     Json     @db.JsonB
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  user Employee @relation("UserViewOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, entityType], map: "idx_user_view_user_entity")
+  @@map("user_views")
 }

@@ -33,6 +33,9 @@ import { DocumentComments } from '@/components/DocumentComments';
 import { ImportDialog } from '@/components/ImportDialog';
 import { SmartGrid, ViewSwitcher } from '@/components/smart-grid';
 import type { ViewMode } from '@/components/smart-grid';
+import type { ColumnState } from 'ag-grid-community';
+import { useUserViews, useSaveView, useUpdateView } from '@/api/hooks/useUserViews';
+import type { UserViewConfig } from '@/api/hooks/useUserViews';
 const BarcodeScanner = React.lazy(() => import('@/components/BarcodeScanner'));
 import { toast } from '@/components/Toaster';
 import { generateDocumentPdf, buildPdfOptions } from '@/utils/pdfExport';
@@ -314,11 +317,54 @@ export const AdminResourceList: React.FC = () => {
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [columnState, setColumnState] = useState<ColumnState[] | undefined>(undefined);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<string>('');
   const [importOpen, setImportOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const pageSize = 20;
+
+  // ── User View Persistence ─────────────────────────────────────────────────
+  const viewsQuery = useUserViews(resource);
+  const saveViewMutation = useSaveView();
+  const updateViewMutation = useUpdateView();
+
+  // Load default view on mount
+  React.useEffect(() => {
+    const views = (
+      viewsQuery.data as { data?: Array<{ id: string; isDefault: boolean; viewType: string; config: UserViewConfig }> }
+    )?.data;
+    if (!views || views.length === 0) return;
+    const defaultView = views.find(v => v.isDefault) ?? views[0];
+    if (defaultView && !activeViewId) {
+      setActiveViewId(defaultView.id);
+      if (defaultView.config?.viewMode) setViewMode(defaultView.config.viewMode as ViewMode);
+      if (defaultView.config?.columnState) setColumnState(defaultView.config.columnState as ColumnState[]);
+    }
+  }, [viewsQuery.data, activeViewId]);
+
+  const handleSaveView = useCallback(() => {
+    if (!resource) return;
+    const config: UserViewConfig = { viewMode, columnState: columnState as unknown[] | undefined };
+
+    if (activeViewId) {
+      updateViewMutation.mutate({ id: activeViewId, entityType: resource, config });
+    } else {
+      saveViewMutation.mutate(
+        { entityType: resource, name: 'Default', config, isDefault: true },
+        {
+          onSuccess: resp => {
+            setActiveViewId((resp as { data?: { id: string } }).data?.id ?? null);
+          },
+        },
+      );
+    }
+  }, [resource, viewMode, columnState, activeViewId, updateViewMutation, saveViewMutation]);
+
+  const handleColumnStateChanged = useCallback((state: ColumnState[]) => {
+    setColumnState(state);
+  }, []);
 
   const isMasterData = MASTER_DATA_RESOURCES.has(resource || '');
   const isDocument = DOCUMENT_RESOURCES.has(resource || '');
@@ -721,6 +767,17 @@ export const AdminResourceList: React.FC = () => {
                 </span>
               </button>
               <ViewSwitcher mode={viewMode} onChange={setViewMode} availableModes={['grid', 'list', 'card']} />
+              {viewMode === 'grid' && (
+                <button
+                  type="button"
+                  onClick={handleSaveView}
+                  disabled={saveViewMutation.isPending || updateViewMutation.isPending}
+                  className="px-2.5 py-1.5 text-xs border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-all disabled:opacity-40"
+                  title="Save current grid layout"
+                >
+                  {saveViewMutation.isPending || updateViewMutation.isPending ? 'Saving...' : 'Save View'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -827,6 +884,8 @@ export const AdminResourceList: React.FC = () => {
                 loading={query.isLoading}
                 isDocument={isDocument}
                 selectedIds={selectedIds}
+                initialColumnState={columnState}
+                onColumnStateChanged={handleColumnStateChanged}
                 onSortChanged={(key, dir) => {
                   setSortKey(key);
                   setSortDir(dir);

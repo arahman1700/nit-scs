@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Save, AlertCircle, AlertTriangle, Info, Loader2 } from 'lucide-react';
 import { LineItemsTable } from '@/components/LineItemsTable';
 import { DocumentComments } from '@/components/DocumentComments';
+import { DocumentAttachments } from '@/components/DocumentAttachments';
 import { useDocumentForm } from './forms/useDocumentForm';
 import { FormFieldRenderer } from './forms/FormFieldRenderer';
 import { FormSuccessView } from './forms/FormSuccessView';
@@ -220,6 +221,9 @@ export const ResourceForm: React.FC = () => {
 
           {/* Document Comments (only in edit/view mode) */}
           {isEditMode && id && formType && <DocumentComments documentType={formType} documentId={id} />}
+
+          {/* File Attachments (only in edit/view mode) */}
+          {isEditMode && id && formType && <DocumentAttachments entityType={formType} recordId={id} />}
 
           {/* Auto-creation Indicators */}
           {formType === 'mrrv' && (

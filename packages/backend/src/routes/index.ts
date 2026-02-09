@@ -40,6 +40,8 @@ import commentRoutes from './comment.routes.js';
 import bulkRoutes from './bulk.routes.js';
 import importRoutes from './import.routes.js';
 import delegationRoutes from './delegation.routes.js';
+import attachmentRoutes from './attachment.routes.js';
+import userViewRoutes from './user-view.routes.js';
 
 const router = Router();
 
@@ -109,5 +111,11 @@ router.use('/delegations', delegationRoutes);
 router.use('/email-templates', emailTemplateRoutes);
 router.use('/email-logs', emailLogRoutes);
 router.use('/webhooks', emailWebhookRoutes);
+
+// ── File Attachments ─────────────────────────────────────────────────────
+router.use('/attachments', attachmentRoutes);
+
+// ── User View Preferences ────────────────────────────────────────────────
+router.use('/views', userViewRoutes);
 
 export default router;

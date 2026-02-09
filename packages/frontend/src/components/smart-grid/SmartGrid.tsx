@@ -1,6 +1,13 @@
-import React, { useMemo, useCallback, useRef } from 'react';
+import React, { useMemo, useCallback, useRef, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import type { ColDef, GridReadyEvent, SortChangedEvent, CellValueChangedEvent, GridApi } from 'ag-grid-community';
+import type {
+  ColDef,
+  GridReadyEvent,
+  SortChangedEvent,
+  CellValueChangedEvent,
+  GridApi,
+  ColumnState,
+} from 'ag-grid-community';
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community';
 import { useDirection } from '@/contexts/DirectionProvider';
 import { EmptyState } from '@/components/EmptyState';
@@ -39,6 +46,8 @@ export interface SmartGridProps {
   onSelectionChanged?: (ids: Set<string>) => void;
   onCellValueChanged?: (rowId: string, field: string, newValue: unknown) => void;
   suppressPagination?: boolean;
+  initialColumnState?: ColumnState[];
+  onColumnStateChanged?: (state: ColumnState[]) => void;
 }
 
 export const SmartGrid: React.FC<SmartGridProps> = ({
@@ -52,6 +61,8 @@ export const SmartGrid: React.FC<SmartGridProps> = ({
   onSelectionChanged,
   onCellValueChanged,
   suppressPagination,
+  initialColumnState,
+  onColumnStateChanged,
 }) => {
   const { dir } = useDirection();
   const gridRef = useRef<GridApi | null>(null);
@@ -68,9 +79,33 @@ export const SmartGrid: React.FC<SmartGridProps> = ({
     [],
   );
 
-  const onGridReady = useCallback((params: GridReadyEvent) => {
-    gridRef.current = params.api;
-    params.api.sizeColumnsToFit();
+  const onGridReady = useCallback(
+    (params: GridReadyEvent) => {
+      gridRef.current = params.api;
+      if (initialColumnState && initialColumnState.length > 0) {
+        params.api.applyColumnState({ state: initialColumnState, applyOrder: true });
+      }
+      params.api.sizeColumnsToFit();
+    },
+    [initialColumnState],
+  );
+
+  const columnStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleColumnStateChanged = useCallback(() => {
+    if (!onColumnStateChanged || !gridRef.current) return;
+    // Debounce to avoid excessive saves during resize dragging
+    if (columnStateTimerRef.current) clearTimeout(columnStateTimerRef.current);
+    columnStateTimerRef.current = setTimeout(() => {
+      if (gridRef.current) {
+        onColumnStateChanged(gridRef.current.getColumnState());
+      }
+    }, 500);
+  }, [onColumnStateChanged]);
+
+  useEffect(() => {
+    return () => {
+      if (columnStateTimerRef.current) clearTimeout(columnStateTimerRef.current);
+    };
   }, []);
 
   const handleSortChanged = useCallback(
@@ -130,6 +165,9 @@ export const SmartGrid: React.FC<SmartGridProps> = ({
         onSortChanged={handleSortChanged}
         onCellValueChanged={handleCellValueChanged}
         onRowClicked={handleRowClicked}
+        onColumnResized={handleColumnStateChanged}
+        onColumnMoved={handleColumnStateChanged}
+        onColumnVisible={handleColumnStateChanged}
         noRowsOverlayComponent={noRowsOverlay}
         loading={loading}
         getRowId={params => params.data.id as string}
