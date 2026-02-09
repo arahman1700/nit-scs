@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
-import { Shield, Settings as SettingsIcon, Zap, Mail } from 'lucide-react';
+import { Shield, Settings as SettingsIcon, Zap, Mail, ArrowRightLeft } from 'lucide-react';
 import { SectionLandingPage } from '@/components/SectionLandingPage';
+import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import type { KpiCardProps } from '@/components/KpiCard';
 import type { TabDef } from '@/components/SectionTabBar';
 
@@ -16,6 +17,7 @@ const EmailTemplatesPage = React.lazy(() =>
   import('@/pages/EmailTemplatesPage').then(m => ({ default: m.EmailTemplatesPage })),
 );
 const EmailLogsPage = React.lazy(() => import('@/pages/EmailLogsPage').then(m => ({ default: m.EmailLogsPage })));
+const DelegationsPage = React.lazy(() => import('@/pages/DelegationsPage').then(m => ({ default: m.DelegationsPage })));
 
 const Spinner: React.FC = () => (
   <div className="flex items-center justify-center py-20">
@@ -49,6 +51,12 @@ const kpis: KpiCardProps[] = [
     icon: SettingsIcon,
     color: 'bg-emerald-500',
   },
+  {
+    title: 'Delegations',
+    value: 'Manage',
+    icon: ArrowRightLeft,
+    color: 'bg-purple-500',
+  },
 ];
 
 const tabs: TabDef[] = [
@@ -59,6 +67,7 @@ const tabs: TabDef[] = [
   { key: 'workflows', label: 'Workflows' },
   { key: 'email-templates', label: 'Email Templates' },
   { key: 'email-logs', label: 'Email Logs' },
+  { key: 'delegations', label: 'Delegations' },
 ];
 
 export const AdminSystemPage: React.FC = () => {
@@ -71,39 +80,60 @@ export const AdminSystemPage: React.FC = () => {
       defaultTab="roles"
       children={{
         roles: (
-          <Suspense fallback={<Spinner />}>
-            <RolesPage />
-          </Suspense>
+          <RouteErrorBoundary label="Roles & Permissions">
+            <Suspense fallback={<Spinner />}>
+              <RolesPage />
+            </Suspense>
+          </RouteErrorBoundary>
         ),
         audit: (
-          <Suspense fallback={<Spinner />}>
-            <AuditLogPage />
-          </Suspense>
+          <RouteErrorBoundary label="Audit Log">
+            <Suspense fallback={<Spinner />}>
+              <AuditLogPage />
+            </Suspense>
+          </RouteErrorBoundary>
         ),
         settings: (
-          <Suspense fallback={<Spinner />}>
-            <SettingsPage />
-          </Suspense>
+          <RouteErrorBoundary label="Settings">
+            <Suspense fallback={<Spinner />}>
+              <SettingsPage />
+            </Suspense>
+          </RouteErrorBoundary>
         ),
         reports: (
-          <Suspense fallback={<Spinner />}>
-            <ReportsPage />
-          </Suspense>
+          <RouteErrorBoundary label="Reports">
+            <Suspense fallback={<Spinner />}>
+              <ReportsPage />
+            </Suspense>
+          </RouteErrorBoundary>
         ),
         workflows: (
-          <Suspense fallback={<Spinner />}>
-            <WorkflowListPage />
-          </Suspense>
+          <RouteErrorBoundary label="Workflows">
+            <Suspense fallback={<Spinner />}>
+              <WorkflowListPage />
+            </Suspense>
+          </RouteErrorBoundary>
         ),
         'email-templates': (
-          <Suspense fallback={<Spinner />}>
-            <EmailTemplatesPage />
-          </Suspense>
+          <RouteErrorBoundary label="Email Templates">
+            <Suspense fallback={<Spinner />}>
+              <EmailTemplatesPage />
+            </Suspense>
+          </RouteErrorBoundary>
         ),
         'email-logs': (
-          <Suspense fallback={<Spinner />}>
-            <EmailLogsPage />
-          </Suspense>
+          <RouteErrorBoundary label="Email Logs">
+            <Suspense fallback={<Spinner />}>
+              <EmailLogsPage />
+            </Suspense>
+          </RouteErrorBoundary>
+        ),
+        delegations: (
+          <RouteErrorBoundary label="Delegations">
+            <Suspense fallback={<Spinner />}>
+              <DelegationsPage />
+            </Suspense>
+          </RouteErrorBoundary>
         ),
       }}
     />

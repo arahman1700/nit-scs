@@ -49,6 +49,7 @@ export function useRealtimeSync() {
     socket.on('approval:requested', handleApproval);
     socket.on('approval:approved', handleApproval);
     socket.on('approval:rejected', handleApproval);
+    socket.on('approval:level_approved', handleApproval);
 
     // Notifications
     socket.on('notification:new', handleNotification);
@@ -76,6 +77,7 @@ export function useRealtimeSync() {
       socket.off('approval:requested', handleApproval);
       socket.off('approval:approved', handleApproval);
       socket.off('approval:rejected', handleApproval);
+      socket.off('approval:level_approved', handleApproval);
       socket.off('notification:new', handleNotification);
       socket.off('inventory:updated', handleInventoryUpdate);
       socket.off('task:assigned', handleTaskEvent);

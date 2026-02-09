@@ -1,23 +1,14 @@
 import React, { Suspense, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  RotateCcw,
-  Search,
-  AlertTriangle,
-  CheckCircle,
-  Plus,
-  ClipboardList,
-  FileWarning,
-} from 'lucide-react';
+import { RotateCcw, Search, AlertTriangle, CheckCircle, Plus, ClipboardList, FileWarning } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { SectionLandingPage } from '@/components/SectionLandingPage';
+import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 import type { KpiCardProps } from '@/components/KpiCard';
 import type { TabDef } from '@/components/SectionTabBar';
 import { useMrvList, useRfimList, useOsdList } from '@/api/hooks';
 
-const LazyRfimList = React.lazy(() =>
-  import('@/pages/quality/RfimList').then((m) => ({ default: m.RfimList })),
-);
+const LazyRfimList = React.lazy(() => import('@/pages/quality/RfimList').then(m => ({ default: m.RfimList })));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,13 +50,13 @@ export const QualitySectionPage: React.FC = () => {
   // ── KPI calculations ──────────────────────────────────────────────────────
 
   const pendingReturns = useMemo(
-    () => mrvData.filter((r) => (r as Record<string, unknown>).status === 'Pending').length,
+    () => mrvData.filter(r => (r as Record<string, unknown>).status === 'Pending').length,
     [mrvData],
   );
 
   const openInspections = useMemo(
     () =>
-      rfimData.filter((r) => {
+      rfimData.filter(r => {
         const s = (r as Record<string, unknown>).status as string;
         return s === 'Pending' || s === 'Open';
       }).length,
@@ -74,7 +65,7 @@ export const QualitySectionPage: React.FC = () => {
 
   const qcPassRate = useMemo(() => {
     if (rfimData.length === 0) return 0;
-    const passed = rfimData.filter((r) => (r as Record<string, unknown>).result === 'Pass').length;
+    const passed = rfimData.filter(r => (r as Record<string, unknown>).result === 'Pass').length;
     return Math.round((passed / rfimData.length) * 100);
   }, [rfimData]);
 
@@ -98,7 +89,7 @@ export const QualitySectionPage: React.FC = () => {
 
   const returnsByType = useMemo(() => {
     const counts: Record<string, number> = {};
-    mrvData.forEach((r) => {
+    mrvData.forEach(r => {
       const t = ((r as Record<string, unknown>).returnType as string) || 'Other';
       counts[t] = (counts[t] || 0) + 1;
     });
@@ -109,7 +100,7 @@ export const QualitySectionPage: React.FC = () => {
 
   const osdSummary = useMemo(() => {
     const counts: Record<string, number> = { Overage: 0, Shortage: 0, Damage: 0 };
-    osdData.forEach((r) => {
+    osdData.forEach(r => {
       const t = (r as Record<string, unknown>).reportType as string;
       if (t && counts[t] !== undefined) counts[t]++;
     });
@@ -120,8 +111,18 @@ export const QualitySectionPage: React.FC = () => {
 
   const quickActions = [
     { label: 'New Return', icon: RotateCcw, onClick: () => navigate('/admin/forms/mrv') },
-    { label: 'Inspection Request', icon: ClipboardList, onClick: () => navigate('/admin/forms/rfim'), variant: 'secondary' as const },
-    { label: 'OSD Report', icon: FileWarning, onClick: () => navigate('/admin/forms/osd'), variant: 'secondary' as const },
+    {
+      label: 'Inspection Request',
+      icon: ClipboardList,
+      onClick: () => navigate('/admin/forms/rfim'),
+      variant: 'secondary' as const,
+    },
+    {
+      label: 'OSD Report',
+      icon: FileWarning,
+      onClick: () => navigate('/admin/forms/osd'),
+      variant: 'secondary' as const,
+    },
   ];
 
   // ── Tab content ───────────────────────────────────────────────────────────
@@ -164,12 +165,17 @@ export const QualitySectionPage: React.FC = () => {
             <h3 className="text-white font-semibold mb-4">Recent Inspections Queue</h3>
             {recentRfims.length > 0 ? (
               <div className="space-y-3">
-                {recentRfims.map((r) => {
+                {recentRfims.map(r => {
                   const rec = r as Record<string, unknown>;
                   return (
-                    <div key={rec.id as string} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                    <div
+                      key={rec.id as string}
+                      className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
+                    >
                       <div>
-                        <p className="text-white text-sm font-medium">{(rec.documentNumber as string) || (rec.id as string)}</p>
+                        <p className="text-white text-sm font-medium">
+                          {(rec.documentNumber as string) || (rec.id as string)}
+                        </p>
                         <p className="text-gray-400 text-xs">{(rec.itemName as string) || 'N/A'}</p>
                       </div>
                       <StatusBadge status={(rec.status as string) || 'Pending'} />
@@ -222,27 +228,38 @@ export const QualitySectionPage: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {mrvData.slice(0, 15).map((r) => {
+            {mrvData.slice(0, 15).map(r => {
               const rec = r as Record<string, unknown>;
               return (
                 <tr key={rec.id as string} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                   <td className="p-4 text-white font-medium">{(rec.documentNumber as string) || (rec.id as string)}</td>
                   <td className="p-4 text-gray-300">{(rec.returnType as string) || '-'}</td>
-                  <td className="p-4 text-gray-300">{rec.createdAt ? new Date(rec.createdAt as string).toLocaleDateString() : '-'}</td>
+                  <td className="p-4 text-gray-300">
+                    {rec.createdAt ? new Date(rec.createdAt as string).toLocaleDateString() : '-'}
+                  </td>
                   <td className="p-4 text-gray-300">{(rec.projectName as string) || '-'}</td>
                   <td className="p-4 text-gray-300">{(rec.warehouseName as string) || '-'}</td>
-                  <td className="p-4"><StatusBadge status={(rec.status as string) || 'Pending'} /></td>
+                  <td className="p-4">
+                    <StatusBadge status={(rec.status as string) || 'Pending'} />
+                  </td>
                 </tr>
               );
             })}
             {mrvData.length === 0 && (
-              <tr><td colSpan={6} className="p-8 text-center text-gray-500">No return records found</td></tr>
+              <tr>
+                <td colSpan={6} className="p-8 text-center text-gray-500">
+                  No return records found
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
         {mrvData.length > 15 && (
           <div className="p-3 text-center border-t border-white/10">
-            <button onClick={() => navigate('/admin/list/mrv')} className="text-nesma-secondary text-sm hover:underline">
+            <button
+              onClick={() => navigate('/admin/list/mrv')}
+              className="text-nesma-secondary text-sm hover:underline"
+            >
               View All {mrvQuery.data?.meta?.total ?? mrvData.length} Returns
             </button>
           </div>
@@ -251,9 +268,17 @@ export const QualitySectionPage: React.FC = () => {
     ),
 
     rfim: (
-      <Suspense fallback={<div className="glass-card p-12 rounded-xl text-center text-gray-500 animate-pulse">Loading inspections...</div>}>
-        <LazyRfimList />
-      </Suspense>
+      <RouteErrorBoundary label="Inspections">
+        <Suspense
+          fallback={
+            <div className="glass-card p-12 rounded-xl text-center text-gray-500 animate-pulse">
+              Loading inspections...
+            </div>
+          }
+        >
+          <LazyRfimList />
+        </Suspense>
+      </RouteErrorBoundary>
     ),
 
     osd: (
@@ -270,7 +295,7 @@ export const QualitySectionPage: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {osdData.slice(0, 15).map((r) => {
+            {osdData.slice(0, 15).map(r => {
               const rec = r as Record<string, unknown>;
               return (
                 <tr key={rec.id as string} className="border-b border-white/5 hover:bg-white/5 transition-colors">
@@ -279,18 +304,27 @@ export const QualitySectionPage: React.FC = () => {
                   <td className="p-4 text-gray-300">{(rec.reportType as string) || '-'}</td>
                   <td className="p-4 text-gray-300">{(rec.qtyAffected as number) ?? '-'}</td>
                   <td className="p-4 text-gray-300">{(rec.action as string) || '-'}</td>
-                  <td className="p-4"><StatusBadge status={(rec.status as string) || 'Open'} /></td>
+                  <td className="p-4">
+                    <StatusBadge status={(rec.status as string) || 'Open'} />
+                  </td>
                 </tr>
               );
             })}
             {osdData.length === 0 && (
-              <tr><td colSpan={6} className="p-8 text-center text-gray-500">No OSD reports found</td></tr>
+              <tr>
+                <td colSpan={6} className="p-8 text-center text-gray-500">
+                  No OSD reports found
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
         {osdData.length > 15 && (
           <div className="p-3 text-center border-t border-white/10">
-            <button onClick={() => navigate('/admin/list/osd')} className="text-nesma-secondary text-sm hover:underline">
+            <button
+              onClick={() => navigate('/admin/list/osd')}
+              className="text-nesma-secondary text-sm hover:underline"
+            >
               View All {osdTotal} OSD Reports
             </button>
           </div>

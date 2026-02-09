@@ -6,15 +6,16 @@ import {
   Filter,
   Download,
   Eye,
-  MoreHorizontal,
   AlertTriangle,
   CheckCircle,
   Clock,
   XCircle,
   FileCheck,
-  X
+  X,
 } from 'lucide-react';
 import { useRfimList } from '@/api/hooks/useRfim';
+import { DocumentActions } from '@/components/DocumentActions';
+import { ExportButton } from '@/components/ExportButton';
 import type { RFIM } from '@nit-scs/shared/types';
 
 // Custom Badge for Inspection Status
@@ -52,7 +53,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 // Custom Badge for Priority
 const PriorityBadge: React.FC<{ priority: string }> = ({ priority }) => {
   let colorClass = 'text-gray-400';
-  
+
   switch (priority) {
     case 'Critical':
       colorClass = 'text-red-400 font-bold';
@@ -65,11 +66,7 @@ const PriorityBadge: React.FC<{ priority: string }> = ({ priority }) => {
       break;
   }
 
-  return (
-    <span className={`text-xs ${colorClass}`}>
-      {priority}
-    </span>
-  );
+  return <span className={`text-xs ${colorClass}`}>{priority}</span>;
 };
 
 export const RfimList: React.FC = () => {
@@ -106,7 +103,9 @@ export const RfimList: React.FC = () => {
   if (rfimQuery.isLoading) {
     return (
       <div className="space-y-4">
-        {[1, 2, 3, 4, 5].map(i => <div key={i} className="animate-pulse bg-white/5 rounded h-12 w-full"></div>)}
+        {[1, 2, 3, 4, 5].map(i => (
+          <div key={i} className="animate-pulse bg-white/5 rounded h-12 w-full"></div>
+        ))}
       </div>
     );
   }
@@ -122,81 +121,92 @@ export const RfimList: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold text-white glow-text">Inspection Requests (RFIM)</h1>
           <p className="text-sm text-gray-400 mt-1 flex items-center gap-2">
-            <span className="bg-nesma-primary/20 text-nesma-secondary px-2 py-0.5 rounded text-xs border border-nesma-primary/30">QC-RFIM</span>
+            <span className="bg-nesma-primary/20 text-nesma-secondary px-2 py-0.5 rounded text-xs border border-nesma-primary/30">
+              QC-RFIM
+            </span>
             Manage quality control inspections and results
           </p>
         </div>
         <div className="flex gap-3">
-           <button className="flex items-center gap-2 px-4 py-2 border border-white/20 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white text-sm transition-all">
-             <Download size={16} />
-             <span>Export List</span>
-           </button>
-           <button 
-             onClick={() => navigate('/admin/forms/rfim')}
-             className="flex items-center gap-2 px-4 py-2 bg-nesma-primary text-white rounded-lg hover:bg-nesma-accent text-sm shadow-lg shadow-nesma-primary/20 transition-all transform hover:-translate-y-0.5"
-           >
-             <Plus size={16} />
-             <span>New Request</span>
-           </button>
+          <ExportButton
+            data={filteredData as unknown as Record<string, unknown>[]}
+            columns={[
+              { key: 'formNumber', label: 'RFIM #' },
+              { key: 'mrrvId', label: 'MRRV Ref' },
+              { key: 'status', label: 'Status' },
+              { key: 'priority', label: 'Priority' },
+              { key: 'date', label: 'Date' },
+            ]}
+            filename="RFIM"
+          />
+          <button
+            onClick={() => navigate('/admin/forms/rfim')}
+            className="flex items-center gap-2 px-4 py-2 bg-nesma-primary text-white rounded-lg hover:bg-nesma-accent text-sm shadow-lg shadow-nesma-primary/20 transition-all transform hover:-translate-y-0.5"
+          >
+            <Plus size={16} />
+            <span>New Request</span>
+          </button>
         </div>
       </div>
 
       {/* Glass Table Container */}
       <div className="glass-card rounded-2xl overflow-hidden">
-        
         {/* Advanced Toolbar */}
         <div className="p-4 border-b border-white/10 flex flex-col lg:flex-row gap-4 justify-between items-center bg-white/5">
-           {/* Search */}
-           <div className="relative flex-1 w-full lg:max-w-xs">
-             <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3 text-gray-400" />
-             <input 
-               type="text" 
-               placeholder="Search RFIM ID, MRRV, Inspector..." 
-               value={searchQuery}
-               onChange={(e) => setSearchQuery(e.target.value)}
-               className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-nesma-secondary/50 focus:ring-1 focus:ring-nesma-secondary/50 transition-all"
-             />
-           </div>
+          {/* Search */}
+          <div className="relative flex-1 w-full lg:max-w-xs">
+            <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search RFIM ID, MRRV, Inspector..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-nesma-secondary/50 focus:ring-1 focus:ring-nesma-secondary/50 transition-all"
+            />
+          </div>
 
-           {/* Filters */}
-           <div className="flex flex-wrap gap-3 w-full lg:w-auto items-center">
-             <div className="flex items-center gap-2 px-3 py-2 bg-black/20 border border-white/10 rounded-lg">
-               <Filter size={14} className="text-nesma-secondary" />
-               <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Filters:</span>
-             </div>
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 w-full lg:w-auto items-center">
+            <div className="flex items-center gap-2 px-3 py-2 bg-black/20 border border-white/10 rounded-lg">
+              <Filter size={14} className="text-nesma-secondary" />
+              <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Filters:</span>
+            </div>
 
-             <select 
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-nesma-secondary/50 cursor-pointer hover:bg-white/5"
-             >
-               <option value="">All Statuses</option>
-               <option value="Pass">Pass</option>
-               <option value="Fail">Fail</option>
-               <option value="Conditional">Conditional</option>
-               <option value="Pending">Pending</option>
-             </select>
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}
+              className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-nesma-secondary/50 cursor-pointer hover:bg-white/5"
+            >
+              <option value="">All Statuses</option>
+              <option value="Pass">Pass</option>
+              <option value="Fail">Fail</option>
+              <option value="Conditional">Conditional</option>
+              <option value="Pending">Pending</option>
+            </select>
 
-             <select 
-                value={filterPriority}
-                onChange={(e) => setFilterPriority(e.target.value)}
-                className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-nesma-secondary/50 cursor-pointer hover:bg-white/5"
-             >
-               <option value="">All Priorities</option>
-               <option value="Normal">Normal</option>
-               <option value="Urgent">Urgent</option>
-               <option value="Critical">Critical</option>
-             </select>
+            <select
+              value={filterPriority}
+              onChange={e => setFilterPriority(e.target.value)}
+              className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-nesma-secondary/50 cursor-pointer hover:bg-white/5"
+            >
+              <option value="">All Priorities</option>
+              <option value="Normal">Normal</option>
+              <option value="Urgent">Urgent</option>
+              <option value="Critical">Critical</option>
+            </select>
 
-             {(filterStatus || filterPriority) && (
-               <button 
-                 onClick={() => { setFilterStatus(''); setFilterPriority(''); }}
-                 className="text-xs text-red-400 hover:text-red-300 underline ml-2"
-               >
-                 Clear
-               </button>
-             )}
-           </div>
+            {(filterStatus || filterPriority) && (
+              <button
+                onClick={() => {
+                  setFilterStatus('');
+                  setFilterPriority('');
+                }}
+                className="text-xs text-red-400 hover:text-red-300 underline ml-2"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Table */}
@@ -223,51 +233,49 @@ export const RfimList: React.FC = () => {
                   const rowStatus = (row.status as string) || '';
                   const rowInspector = (row.inspector as string) || '';
                   return (
-                  <tr key={idx} className="nesma-table-row group hover:bg-white/5 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap font-mono text-white">{rowId}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-400 hover:text-nesma-secondary transition-colors cursor-pointer">
+                    <tr key={idx} className="nesma-table-row group hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap font-mono text-white">{rowId}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-400 hover:text-nesma-secondary transition-colors cursor-pointer">
                         {rowMrrvId}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">{rowInspectionType}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">{rowInspectionType}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <PriorityBadge priority={rowPriority} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <StatusBadge status={rowStatus} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-nesma-primary/50 flex items-center justify-center text-[10px] text-white font-bold border border-white/10">
-                                {rowInspector ? rowInspector.charAt(0) : '?'}
-                            </div>
-                            <span className="text-gray-400">{rowInspector || 'Unassigned'}</span>
+                          <div className="w-6 h-6 rounded-full bg-nesma-primary/50 flex items-center justify-center text-[10px] text-white font-bold border border-white/10">
+                            {rowInspector ? rowInspector.charAt(0) : '?'}
+                          </div>
+                          <span className="text-gray-400">{rowInspector || 'Unassigned'}</span>
                         </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button
-                           onClick={() => setSelectedItem(row)}
-                           className="p-1.5 rounded-lg hover:bg-white/10 text-nesma-secondary hover:text-white transition-colors"
-                           title="View Details"
-                         >
-                           <Eye size={16} />
-                         </button>
-                         <button className="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors">
-                           <MoreHorizontal size={16} />
-                         </button>
-                       </div>
-                    </td>
-                  </tr>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => setSelectedItem(row)}
+                            className="p-1.5 rounded-lg hover:bg-white/10 text-nesma-secondary hover:text-white transition-colors"
+                            title="View Details"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <DocumentActions resource="rfim" row={row as unknown as Record<string, unknown>} />
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })
               ) : (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
-                            <FileCheck size={24} className="text-gray-600" />
-                        </div>
-                        <p>No inspection requests found matching your filters</p>
+                      <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
+                        <FileCheck size={24} className="text-gray-600" />
+                      </div>
+                      <p>No inspection requests found matching your filters</p>
                     </div>
                   </td>
                 </tr>
@@ -275,18 +283,24 @@ export const RfimList: React.FC = () => {
             </tbody>
           </table>
         </div>
-        
+
         {/* Footer/Pagination */}
         <div className="p-4 border-t border-white/10 flex justify-between items-center bg-white/5 text-xs text-gray-500">
-           <span>Showing {filteredData.length} records</span>
-           <span>QC Module v1.0</span>
+          <span>Showing {filteredData.length} records</span>
+          <span>QC Module v1.0</span>
         </div>
       </div>
 
       {/* RFIM Detail Modal */}
       {selectedItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedItem(null)}>
-          <div className="glass-card w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-[#0E2841]" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => setSelectedItem(null)}
+        >
+          <div
+            className="glass-card w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-[#0E2841]"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center p-6 border-b border-white/10 bg-white/5">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-nesma-primary/20 rounded-lg text-nesma-secondary border border-nesma-primary/30">
@@ -297,11 +311,14 @@ export const RfimList: React.FC = () => {
                   <p className="text-sm text-gray-400">{selectedItem.id}</p>
                 </div>
               </div>
-              <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
+              <button
+                onClick={() => setSelectedItem(null)}
+                className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+              >
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="p-8 space-y-8">
               {/* Status Section */}
               <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
@@ -314,22 +331,26 @@ export const RfimList: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                   <span className="text-xs text-gray-400 uppercase tracking-wider block mb-1">MRRV Reference</span>
-                   <span className="text-white font-mono font-medium">{selectedItem.mrrvId}</span>
+                  <span className="text-xs text-gray-400 uppercase tracking-wider block mb-1">MRRV Reference</span>
+                  <span className="text-white font-mono font-medium">{selectedItem.mrrvId}</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-8">
                 <div className="space-y-6">
                   <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1 block">Inspection Type</label>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1 block">
+                      Inspection Type
+                    </label>
                     <p className="text-white text-lg">{selectedItem.inspectionType}</p>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1 block">Assigned Inspector</label>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1 block">
+                      Assigned Inspector
+                    </label>
                     <div className="flex items-center gap-3 mt-2">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-nesma-primary to-nesma-dark flex items-center justify-center text-xs text-white font-bold border border-white/10 shadow-lg">
-                          {selectedItem.inspector ? selectedItem.inspector.charAt(0) : '?'}
+                        {selectedItem.inspector ? selectedItem.inspector.charAt(0) : '?'}
                       </div>
                       <span className="text-gray-200">{selectedItem.inspector || 'Unassigned'}</span>
                     </div>
@@ -338,27 +359,36 @@ export const RfimList: React.FC = () => {
 
                 <div className="space-y-6">
                   <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1 block">Form Number</label>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1 block">
+                      Form Number
+                    </label>
                     <p className="text-gray-300 font-mono">{selectedItem.formNumber || 'N/A'}</p>
                   </div>
                   <div>
-                     <label className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1 block">Inspector Notes</label>
-                     <p className="text-gray-300 text-sm leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5 min-h-[80px]">
-                       {selectedItem.notes || 'No additional notes provided.'}
-                     </p>
+                    <label className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-1 block">
+                      Inspector Notes
+                    </label>
+                    <p className="text-gray-300 text-sm leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5 min-h-[80px]">
+                      {selectedItem.notes || 'No additional notes provided.'}
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="p-6 border-t border-white/10 bg-white/5 flex justify-end gap-3">
-              <button 
+              <button
                 onClick={() => setSelectedItem(null)}
                 className="px-5 py-2.5 bg-transparent hover:bg-white/5 text-gray-300 rounded-xl text-sm font-medium transition-colors border border-white/10"
               >
                 Close
               </button>
-              <button 
+              <button
+                onClick={() => {
+                  const id = selectedItem?.id;
+                  setSelectedItem(null);
+                  if (id) navigate(`/admin/forms/rfim/${id}`);
+                }}
                 className="px-5 py-2.5 bg-nesma-primary hover:bg-nesma-accent text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-nesma-primary/20"
               >
                 Edit Request

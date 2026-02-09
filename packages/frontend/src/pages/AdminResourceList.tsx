@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { Suspense, useMemo, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -12,6 +12,13 @@ import {
   Download,
   LayoutGrid,
   List,
+  CheckSquare,
+  Square,
+  Loader2,
+  X,
+  Zap,
+  Upload,
+  ScanLine,
 } from 'lucide-react';
 import { DetailModal } from '@/components/DetailModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -21,6 +28,10 @@ import { ApprovalWorkflow } from '@/components/ApprovalWorkflow';
 import { StatusTimeline } from '@/components/StatusTimeline';
 import { Pagination } from '@/components/Pagination';
 import { EmptyState } from '@/components/EmptyState';
+import { DocumentActions } from '@/components/DocumentActions';
+import { DocumentComments } from '@/components/DocumentComments';
+import { ImportDialog } from '@/components/ImportDialog';
+const BarcodeScanner = React.lazy(() => import('@/components/BarcodeScanner'));
 import { toast } from '@/components/Toaster';
 import { generateDocumentPdf, buildPdfOptions } from '@/utils/pdfExport';
 import { getResourceConfig } from '@/config/resourceColumns';
@@ -53,6 +64,8 @@ import {
   useDeleteFleetItem,
   useDeleteGenerator,
   useDeleteInventoryItem,
+  useBulkActions,
+  useExecuteBulkAction,
 } from '@/api/hooks';
 
 // ── Loading Skeleton ───────────────────────────────────────────────────────
@@ -77,8 +90,12 @@ const TableSkeleton: React.FC<{ cols: number }> = ({ cols }) => (
 
 // ── Hook selector based on resource param ──────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyQueryResult = { data: any; isLoading: boolean; isError: boolean; error: unknown };
+interface AnyQueryResult {
+  data: { data?: unknown[]; meta?: { total: number; totalPages: number } } | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+}
 
 function useResourceData(resource: string | undefined, params: ListParams): AnyQueryResult {
   const mrrv = useMrrvList(resource === 'mrrv' ? params : undefined);
@@ -134,6 +151,19 @@ const MASTER_DATA_RESOURCES = new Set([
   'generators',
   'inventory',
 ]);
+
+const IMPORTABLE_RESOURCES = new Set([
+  'projects',
+  'employees',
+  'suppliers',
+  'warehouses',
+  'inventory',
+  'regions',
+  'cities',
+  'uoms',
+]);
+
+const SCANNABLE_RESOURCES = new Set(['inventory', 'items']);
 
 const DOCUMENT_RESOURCES = new Set([
   'mrrv',
@@ -282,6 +312,10 @@ export const AdminResourceList: React.FC = () => {
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<string>('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const pageSize = 20;
 
   const isMasterData = MASTER_DATA_RESOURCES.has(resource || '');
@@ -291,9 +325,9 @@ export const AdminResourceList: React.FC = () => {
   const filterConfigs = useMemo(() => getFilterConfigs(resource), [resource]);
 
   const handlePdfExport = useCallback(
-    (row: Record<string, unknown>) => {
+    (row: Record<string, unknown>, printMode = false) => {
       const options = buildPdfOptions(resource || '', row);
-      generateDocumentPdf(options);
+      generateDocumentPdf({ ...options, printMode });
     },
     [resource],
   );
@@ -379,12 +413,67 @@ export const AdminResourceList: React.FC = () => {
   };
 
   // Extract data
-  const apiData =
-    (query.data as { data?: Record<string, unknown>[]; meta?: { total: number; totalPages: number } } | undefined)
-      ?.data ?? [];
-  const apiMeta = (query.data as { meta?: { total: number; totalPages: number } } | undefined)?.meta;
+  const apiData = (query.data?.data ?? []) as Record<string, unknown>[];
+  const apiMeta = query.data?.meta;
   const totalFromApi = apiMeta?.total ?? apiData.length;
   const totalPages = apiMeta?.totalPages ?? Math.max(1, Math.ceil(totalFromApi / pageSize));
+
+  // Bulk actions
+  const COMMENT_TYPE_MAP: Record<string, string> = { 'job-orders': 'job-order', shipments: 'shipment' };
+  const bulkDocType = isDocument && resource ? (COMMENT_TYPE_MAP[resource] ?? resource) : undefined;
+  const bulkActionsQuery = useBulkActions(bulkDocType);
+  const executeBulk = useExecuteBulkAction();
+  const availableBulkActions = (bulkActionsQuery.data as { data?: { actions: string[] } })?.data?.actions ?? [];
+
+  const allPageIds = useMemo(() => apiData.map(r => r.id as string).filter(Boolean), [apiData]);
+  const allSelected = allPageIds.length > 0 && allPageIds.every(id => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allPageIds));
+    }
+  }, [allSelected, allPageIds]);
+
+  const handleBulkExecute = useCallback(async () => {
+    if (!bulkDocType || !bulkAction || selectedIds.size === 0) return;
+    try {
+      const result = await executeBulk.mutateAsync({
+        documentType: bulkDocType,
+        ids: Array.from(selectedIds),
+        action: bulkAction,
+      });
+      const data = (result as { data?: { succeeded: number; failed: number } })?.data;
+      if (data) {
+        if (data.failed === 0) {
+          toast.success(`Bulk ${bulkAction}`, `${data.succeeded} documents processed successfully`);
+        } else {
+          toast.warning(`Bulk ${bulkAction}`, `${data.succeeded} succeeded, ${data.failed} failed`);
+        }
+      }
+      setSelectedIds(new Set());
+      setBulkAction('');
+    } catch (err) {
+      toast.error('Bulk action failed', (err as Error)?.message || 'Unknown error');
+    }
+  }, [bulkDocType, bulkAction, selectedIds, executeBulk]);
+
+  // Clear selection when page/resource changes
+  React.useEffect(() => {
+    setSelectedIds(new Set());
+    setBulkAction('');
+  }, [currentPage, resource]);
 
   // Detail modal data
   const selectedRowDetails = useMemo(() => {
@@ -534,6 +623,7 @@ export const AdminResourceList: React.FC = () => {
           <Trash2 size={size} />
         </button>
       )}
+      {isDocument && resource && <DocumentActions resource={resource} row={row} />}
     </div>
   );
 
@@ -552,6 +642,15 @@ export const AdminResourceList: React.FC = () => {
         </div>
         <div className="flex gap-3">
           <ExportButton data={apiData} columns={config.columns} filename={config.code} />
+          {IMPORTABLE_RESOURCES.has(resource || '') && (
+            <button
+              onClick={() => setImportOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-white/20 text-gray-300 hover:text-white hover:bg-white/5 rounded-lg text-sm transition-all"
+            >
+              <Upload size={16} />
+              <span>Import</span>
+            </button>
+          )}
           {formLink !== '#' && (
             <button
               onClick={() => navigate(formLink)}
@@ -578,18 +677,29 @@ export const AdminResourceList: React.FC = () => {
         <div className="glass-card rounded-2xl overflow-hidden">
           {/* Toolbar */}
           <div className="p-4 border-b border-white/10 flex flex-col md:flex-row gap-4 justify-between items-center bg-white/5">
-            <div className="relative flex-1 w-full md:max-w-md">
-              <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3 text-gray-400" />
-              <input
-                type="text"
-                placeholder={`Search ${config.title}...`}
-                value={searchTerm}
-                onChange={e => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-nesma-secondary/50 focus:ring-1 focus:ring-nesma-secondary/50 transition-all"
-              />
+            <div className="relative flex-1 w-full md:max-w-md flex gap-2">
+              <div className="relative flex-1">
+                <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-3 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder={`Search ${config.title}...`}
+                  value={searchTerm}
+                  onChange={e => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-nesma-secondary/50 focus:ring-1 focus:ring-nesma-secondary/50 transition-all"
+                />
+              </div>
+              {SCANNABLE_RESOURCES.has(resource || '') && (
+                <button
+                  onClick={() => setScannerOpen(true)}
+                  className="flex items-center gap-2 px-3 py-2 bg-nesma-primary/20 text-nesma-secondary border border-nesma-primary/30 rounded-lg text-sm hover:bg-nesma-primary/30 transition-all"
+                  title="Scan Barcode"
+                >
+                  <ScanLine size={16} />
+                </button>
+              )}
             </div>
             <div className="flex gap-2 w-full md:w-auto">
               <button
@@ -624,6 +734,52 @@ export const AdminResourceList: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Bulk Action Bar */}
+          {isDocument && someSelected && (
+            <div className="px-4 py-3 border-b border-nesma-secondary/20 bg-nesma-secondary/5 flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <CheckSquare size={16} className="text-nesma-secondary" />
+                <span className="text-sm font-medium text-nesma-secondary">{selectedIds.size} selected</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedIds(new Set());
+                    setBulkAction('');
+                  }}
+                  className="p-1 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                  title="Clear selection"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              {availableBulkActions.length > 0 && (
+                <>
+                  <select
+                    value={bulkAction}
+                    onChange={e => setBulkAction(e.target.value)}
+                    className="bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-nesma-secondary/50"
+                  >
+                    <option value="">Select action...</option>
+                    {availableBulkActions.map(a => (
+                      <option key={a} value={a}>
+                        {a.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleBulkExecute}
+                    disabled={!bulkAction || executeBulk.isPending}
+                    className="flex items-center gap-1.5 px-4 py-1.5 bg-nesma-primary hover:bg-nesma-accent text-white text-sm font-medium rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    {executeBulk.isPending ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                    Execute
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Card View */}
           {viewMode === 'card' ? (
@@ -679,6 +835,18 @@ export const AdminResourceList: React.FC = () => {
               <table className="w-full text-left border-collapse">
                 <thead className="nesma-table-head text-nesma-secondary text-xs uppercase tracking-wider font-semibold">
                   <tr>
+                    {isDocument && (
+                      <th className="px-3 py-4 w-10">
+                        <button
+                          type="button"
+                          onClick={toggleSelectAll}
+                          className="text-gray-400 hover:text-nesma-secondary transition-colors"
+                          title={allSelected ? 'Deselect all' : 'Select all'}
+                        >
+                          {allSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                        </button>
+                      </th>
+                    )}
                     {config.columns.map((col, idx) => (
                       <th
                         key={idx}
@@ -697,22 +865,47 @@ export const AdminResourceList: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-white/5 text-sm text-gray-300">
                   {apiData.length > 0 ? (
-                    apiData.map((row, idx) => (
-                      <tr key={idx} className="nesma-table-row group">
-                        {config.columns.map((col, cIdx) => (
-                          <td
-                            key={cIdx}
-                            className="px-6 py-4 whitespace-nowrap group-hover:text-white transition-colors"
-                          >
-                            {renderCellValue(col, row)}
-                          </td>
-                        ))}
-                        <td className="px-6 py-4 text-right">{renderActions(row, 16)}</td>
-                      </tr>
-                    ))
+                    apiData.map((row, idx) => {
+                      const rowId = row.id as string;
+                      const isRowSelected = rowId ? selectedIds.has(rowId) : false;
+                      return (
+                        <tr
+                          key={idx}
+                          className={`nesma-table-row group ${isRowSelected ? 'bg-nesma-secondary/5' : ''}`}
+                        >
+                          {isDocument && (
+                            <td className="px-3 py-4 w-10">
+                              <button
+                                type="button"
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  if (rowId) toggleSelect(rowId);
+                                }}
+                                className="text-gray-400 hover:text-nesma-secondary transition-colors"
+                              >
+                                {isRowSelected ? (
+                                  <CheckSquare size={16} className="text-nesma-secondary" />
+                                ) : (
+                                  <Square size={16} />
+                                )}
+                              </button>
+                            </td>
+                          )}
+                          {config.columns.map((col, cIdx) => (
+                            <td
+                              key={cIdx}
+                              className="px-6 py-4 whitespace-nowrap group-hover:text-white transition-colors"
+                            >
+                              {renderCellValue(col, row)}
+                            </td>
+                          ))}
+                          <td className="px-6 py-4 text-right">{renderActions(row, 16)}</td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan={config.columns.length + 1} className="px-6 py-12 text-center">
+                      <td colSpan={config.columns.length + (isDocument ? 2 : 1)} className="px-6 py-12 text-center">
                         <EmptyState />
                       </td>
                     </tr>
@@ -755,6 +948,32 @@ export const AdminResourceList: React.FC = () => {
         loading={deleteMutation?.isPending ?? false}
       />
 
+      {IMPORTABLE_RESOURCES.has(resource || '') && (
+        <ImportDialog
+          isOpen={importOpen}
+          onClose={() => setImportOpen(false)}
+          entity={resource || ''}
+          entityLabel={config.title}
+        />
+      )}
+
+      {SCANNABLE_RESOURCES.has(resource || '') && (
+        <Suspense fallback={null}>
+          <BarcodeScanner
+            isOpen={scannerOpen}
+            onClose={() => setScannerOpen(false)}
+            onItemFound={item => {
+              setScannerOpen(false);
+              const code = String(item.itemCode || item.code || '');
+              if (code) {
+                setSearchTerm(code);
+                setCurrentPage(1);
+              }
+            }}
+          />
+        </Suspense>
+      )}
+
       <DetailModal
         isOpen={!!selectedRow}
         onClose={() => setSelectedRow(null)}
@@ -763,7 +982,10 @@ export const AdminResourceList: React.FC = () => {
         actions={[
           { label: 'Close', onClick: () => setSelectedRow(null), variant: 'secondary' },
           ...(isDocument && selectedRow
-            ? [{ label: 'Download PDF', onClick: () => handlePdfExport(selectedRow), variant: 'secondary' as const }]
+            ? [
+                { label: 'Print', onClick: () => handlePdfExport(selectedRow, true), variant: 'secondary' as const },
+                { label: 'Download PDF', onClick: () => handlePdfExport(selectedRow), variant: 'secondary' as const },
+              ]
             : []),
           ...(formLink !== '#' && !!selectedRow?.id
             ? [
@@ -800,6 +1022,16 @@ export const AdminResourceList: React.FC = () => {
             {selectedRowDetails?.statusHistory && selectedRowDetails.statusHistory.length > 0 && (
               <StatusTimeline history={selectedRowDetails.statusHistory} />
             )}
+            {/* Document comments panel */}
+            {isDocument && typeof selectedRow?.id === 'string' && resource ? (
+              <DocumentComments
+                documentType={
+                  resource === 'job-orders' ? 'job-order' : resource === 'shipments' ? 'shipment' : resource
+                }
+                documentId={selectedRow.id}
+                defaultCollapsed
+              />
+            ) : null}
           </div>
         )}
       </DetailModal>

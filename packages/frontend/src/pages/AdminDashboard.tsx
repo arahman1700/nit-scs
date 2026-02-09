@@ -1,8 +1,16 @@
-
 import React, { useState, useMemo } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
 } from 'recharts';
 import {
   ClipboardList,
@@ -20,7 +28,7 @@ import {
   FileOutput,
   ShieldCheck,
   Briefcase,
-  Database
+  Database,
 } from 'lucide-react';
 import {
   useDashboardStats,
@@ -77,14 +85,28 @@ const ActivitySkeleton: React.FC = () => (
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
-const StatCard: React.FC<{ title: string; value: string | number; icon: React.ElementType; color: string; label?: string }> = ({ title, value, icon: Icon, color, label }) => (
+const StatCard: React.FC<{
+  title: string;
+  value: string | number;
+  icon: React.ElementType;
+  color: string;
+  label?: string;
+}> = ({ title, value, icon: Icon, color, label }) => (
   <div className="glass-card p-6 rounded-xl flex items-start justify-between hover:border-nesma-secondary/30 transition-all duration-300 group">
     <div>
       <h3 className="text-3xl font-bold text-white mb-1 group-hover:text-nesma-secondary transition-colors">{value}</h3>
       <p className="text-gray-400 text-sm font-medium">{title}</p>
-      {label && <span className={`text-[10px] px-2 py-0.5 rounded-full mt-3 inline-block bg-white/10 border border-white/10 text-gray-300`}>{label}</span>}
+      {label && (
+        <span
+          className={`text-[10px] px-2 py-0.5 rounded-full mt-3 inline-block bg-white/10 border border-white/10 text-gray-300`}
+        >
+          {label}
+        </span>
+      )}
     </div>
-    <div className={`p-4 rounded-xl ${color} text-white shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+    <div
+      className={`p-4 rounded-xl ${color} text-white shadow-lg group-hover:scale-110 transition-transform duration-300`}
+    >
       <Icon size={24} />
     </div>
   </div>
@@ -133,7 +155,10 @@ const SectionCard: React.FC<SectionCardProps> = ({ title, icon: Icon, path, metr
           </>
         ) : (
           metrics.map((m, i) => (
-            <span key={i} className="text-[11px] px-2.5 py-1 rounded-full bg-white/10 border border-white/10 text-gray-300 font-medium">
+            <span
+              key={i}
+              className="text-[11px] px-2.5 py-1 rounded-full bg-white/10 border border-white/10 text-gray-300 font-medium"
+            >
               {m.label}: <span className="text-white font-bold">{m.value}</span>
             </span>
           ))
@@ -171,7 +196,9 @@ const DocCountCard: React.FC<{
       <p className="text-gray-400 text-xs font-medium mb-1">{label}</p>
       <div className="flex items-end justify-between mb-2">
         <span className="text-2xl font-bold text-white">{total}</span>
-        <span className="text-[10px] text-gray-400">{active} {activeLabel}</span>
+        <span className="text-[10px] text-gray-400">
+          {active} {activeLabel}
+        </span>
       </div>
       <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all duration-500`} style={{ width: `${pct}%` }} />
@@ -179,6 +206,44 @@ const DocCountCard: React.FC<{
     </div>
   );
 };
+
+// ── Dashboard API data shapes ───────────────────────────────────────────────
+
+interface DashboardStats {
+  pendingApprovals?: number;
+  pendingRequests?: number;
+  totalProjects?: number;
+  activeJobs?: number;
+  totalItems?: number;
+  incomingShipments?: number;
+  lowStockAlerts?: number;
+  lowStockItems?: number;
+}
+
+interface DocCountBreakdown {
+  total?: number;
+  pending?: number;
+  breakdown?: Record<string, number>;
+}
+
+interface DocumentCounts {
+  mrrv?: DocCountBreakdown;
+  mirv?: DocCountBreakdown;
+  jo?: DocCountBreakdown;
+  mrv?: DocCountBreakdown;
+  rfim?: DocCountBreakdown;
+}
+
+interface SLACompliance {
+  compliancePct?: number;
+}
+
+interface InventorySummary {
+  totalItems?: number;
+  lowStockCount?: number;
+  lowStock?: number;
+  byCategory?: Array<{ name: string; value: number; outbound?: number }>;
+}
 
 // ── Main Component ─────────────────────────────────────────────────────────
 
@@ -199,41 +264,36 @@ export const AdminDashboard: React.FC = () => {
 
   const projects = projectsQuery.data?.data ?? [];
 
+  // Extract raw data from queries
+  const stats = statsQuery.data?.data as DashboardStats | undefined;
+  const activities = activityQuery.data?.data ?? [];
+  const docCounts = docCountsQuery.data?.data as DocumentCounts | undefined;
+  const sla = slaQuery.data?.data as SLACompliance | undefined;
+  const topProjects = (topProjectsQuery.data?.data ?? []) as unknown as Record<string, unknown>[];
+  const invSummary = inventoryQuery.data?.data as InventorySummary | undefined;
+
   // Derived data for charts
   const inventoryData = useMemo(() => {
     const summary = inventoryQuery.data?.data;
-    if (!summary) {
-      const multiplier = selectedProject === 'All' ? 1 : 0.4;
-      return [
-        { name: 'Week 1', in: Math.floor(45 * multiplier), out: Math.floor(30 * multiplier) },
-        { name: 'Week 2', in: Math.floor(20 * multiplier), out: Math.floor(40 * multiplier) },
-        { name: 'Week 3', in: Math.floor(60 * multiplier), out: Math.floor(25 * multiplier) },
-        { name: 'Week 4', in: Math.floor(35 * multiplier), out: Math.floor(50 * multiplier) },
-      ];
-    }
-    // When API returns byCategory, transform for chart
-    return summary.byCategory?.map(c => ({ name: c.name, in: c.value, out: Math.floor(c.value * 0.6) })) ?? [];
-  }, [inventoryQuery.data, selectedProject]);
+    if (!summary?.byCategory?.length) return [];
+    return summary.byCategory.map((c: { name: string; value: number; outbound?: number }) => ({
+      name: c.name,
+      in: c.value,
+      out: c.outbound ?? 0,
+    }));
+  }, [inventoryQuery.data]);
 
   const jobTypesData = useMemo(() => {
-    // Dashboard stats don't include JO breakdown; use placeholder until Reports API does
-    return [
-      { name: 'Transport', value: 4 },
-      { name: 'Equipment', value: 2 },
-      { name: 'Generators', value: 1 },
-    ];
-  }, []);
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const stats = statsQuery.data?.data as Record<string, any> | undefined;
-  const activities = activityQuery.data?.data ?? [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const docCounts = docCountsQuery.data?.data as Record<string, any> | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sla = slaQuery.data?.data as Record<string, any> | undefined;
-  const topProjects = (topProjectsQuery.data?.data ?? []) as unknown as Record<string, unknown>[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const invSummary = inventoryQuery.data?.data as Record<string, any> | undefined;
+    // Use JO status breakdown from document counts API
+    const joBreakdown = docCounts?.jo?.breakdown;
+    if (!joBreakdown) return [];
+    return Object.entries(joBreakdown)
+      .filter(([, count]) => count > 0)
+      .map(([status, count]) => ({
+        name: status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        value: count,
+      }));
+  }, [docCounts]);
 
   const hasError = statsQuery.isError || activityQuery.isError;
 
@@ -242,49 +302,52 @@ export const AdminDashboard: React.FC = () => {
       {/* Header & Filters */}
       <div className="glass-card p-6 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
-           <h1 className="text-2xl font-bold text-white glow-text">Executive Dashboard</h1>
-           <p className="text-gray-400 text-sm mt-1">Real-time logistics and supply chain overview</p>
+          <h1 className="text-2xl font-bold text-white glow-text">Executive Dashboard</h1>
+          <p className="text-gray-400 text-sm mt-1">Real-time logistics and supply chain overview</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-           <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-lg">
-              <Filter size={16} className="text-nesma-secondary" />
-              <select
-                className="bg-transparent border-none outline-none text-sm text-white focus:ring-0 cursor-pointer"
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
-              >
-                <option value="All">All Projects</option>
-                {projects.map((p: { id: string; name: string }) => (
-                  <option key={p.id} value={p.name}>{p.name}</option>
-                ))}
-              </select>
-           </div>
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-lg">
+            <Filter size={16} className="text-nesma-secondary" />
+            <select
+              className="bg-transparent border-none outline-none text-sm text-white focus:ring-0 cursor-pointer"
+              value={selectedProject}
+              onChange={e => setSelectedProject(e.target.value)}
+            >
+              <option value="All">All Projects</option>
+              {projects.map((p: { id: string; name: string }) => (
+                <option key={p.id} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-           <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-lg">
-              <Calendar size={16} className="text-nesma-secondary" />
-              <select
-                className="bg-transparent border-none outline-none text-sm text-white focus:ring-0 cursor-pointer"
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
-              >
-                <option value="7days">Last 7 Days</option>
-                <option value="30days">Last 30 Days</option>
-                <option value="90days">Last Quarter</option>
-              </select>
-           </div>
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-lg">
+            <Calendar size={16} className="text-nesma-secondary" />
+            <select
+              className="bg-transparent border-none outline-none text-sm text-white focus:ring-0 cursor-pointer"
+              value={timeRange}
+              onChange={e => setTimeRange(e.target.value)}
+            >
+              <option value="7days">Last 7 Days</option>
+              <option value="30days">Last 30 Days</option>
+              <option value="90days">Last Quarter</option>
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Error State */}
-      {hasError && (
-        <ErrorBanner message={(statsQuery.error as Error)?.message || 'Network error. Retrying...'} />
-      )}
+      {hasError && <ErrorBanner message={(statsQuery.error as Error)?.message || 'Network error. Retrying...'} />}
 
       {/* BLOCK 1: Stats Cards */}
       {statsQuery.isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton /><StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -329,27 +392,42 @@ export const AdminDashboard: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 glass-card p-6 rounded-xl">
             <div className="flex justify-between items-center mb-6">
-               <h3 className="font-bold text-lg text-white">Inventory Movement</h3>
-               <div className="flex gap-4">
-                  <span className="text-xs flex items-center gap-2 font-medium text-gray-400"><span className="w-2 h-2 rounded-full bg-emerald-400"></span> In</span>
-                  <span className="text-xs flex items-center gap-2 font-medium text-gray-400"><span className="w-2 h-2 rounded-full bg-nesma-primary"></span> Out</span>
-               </div>
+              <h3 className="font-bold text-lg text-white">Inventory Movement</h3>
+              <div className="flex gap-4">
+                <span className="text-xs flex items-center gap-2 font-medium text-gray-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span> In
+                </span>
+                <span className="text-xs flex items-center gap-2 font-medium text-gray-400">
+                  <span className="w-2 h-2 rounded-full bg-nesma-primary"></span> Out
+                </span>
+              </div>
             </div>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={inventoryData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="name" tick={{fontSize: 12, fill: '#9CA3AF'}} axisLine={false} tickLine={false} />
-                  <YAxis tick={{fontSize: 12, fill: '#9CA3AF'}} axisLine={false} tickLine={false} />
-                  <RechartsTooltip
-                    contentStyle={{ backgroundColor: '#0E2841', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
-                    itemStyle={{ color: '#80D1E9' }}
-                    cursor={{fill: 'rgba(255,255,255,0.05)'}}
-                  />
-                  <Bar dataKey="in" fill="#34D399" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Bar dataKey="out" fill="#2E3192" radius={[4, 4, 0, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
+              {inventoryData.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                  No inventory movement data yet
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={inventoryData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: '#0E2841',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px',
+                        color: '#fff',
+                      }}
+                      itemStyle={{ color: '#80D1E9' }}
+                      cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                    />
+                    <Bar dataKey="in" fill="#34D399" radius={[4, 4, 0, 0]} barSize={20} />
+                    <Bar dataKey="out" fill="#2E3192" radius={[4, 4, 0, 0]} barSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -378,10 +456,15 @@ export const AdminDashboard: React.FC = () => {
                       verticalAlign="bottom"
                       height={36}
                       iconType="circle"
-                      formatter={(value) => <span className="text-gray-400 text-xs ml-1">{value}</span>}
+                      formatter={value => <span className="text-gray-400 text-xs ml-1">{value}</span>}
                     />
                     <RechartsTooltip
-                       contentStyle={{ backgroundColor: '#0E2841', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
+                      contentStyle={{
+                        backgroundColor: '#0E2841',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px',
+                        color: '#fff',
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -434,7 +517,7 @@ export const AdminDashboard: React.FC = () => {
             loading={docCountsQuery.isLoading}
             metrics={[
               { label: 'MRV', value: docCounts?.mrv?.total ?? 0 },
-              { label: 'RFIM', value: docCounts?.mirv?.total ?? 0 },
+              { label: 'RFIM', value: docCounts?.rfim?.total ?? 0 },
             ]}
           />
           <SectionCard
@@ -452,9 +535,7 @@ export const AdminDashboard: React.FC = () => {
             icon={Database}
             path="/admin/master"
             loading={false}
-            metrics={[
-              { label: 'Scope', value: 'Suppliers, Items, Projects' },
-            ]}
+            metrics={[{ label: 'Scope', value: 'Suppliers, Items, Projects' }]}
           />
         </div>
       </div>
@@ -502,7 +583,10 @@ export const AdminDashboard: React.FC = () => {
       <div className="glass-card p-6 rounded-xl">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-lg text-white">Top Projects</h3>
-          <Link to="/admin/master?tab=projects" className="text-nesma-secondary text-sm hover:text-white font-medium hover:underline">
+          <Link
+            to="/admin/master?tab=projects"
+            className="text-nesma-secondary text-sm hover:text-white font-medium hover:underline"
+          >
             View All
           </Link>
         </div>
@@ -526,13 +610,19 @@ export const AdminDashboard: React.FC = () => {
               <tbody className="divide-y divide-white/5">
                 {topProjects.map((p: Record<string, unknown>) => (
                   <tr key={p.id as string} className="hover:bg-white/5 transition-colors">
-                    <td className="py-2.5 text-sm text-white font-medium">{(p.projectName ?? p.name ?? '-') as string}</td>
+                    <td className="py-2.5 text-sm text-white font-medium">
+                      {(p.projectName ?? p.name ?? '-') as string}
+                    </td>
                     <td className="py-2.5 text-sm text-gray-400">{(p.projectCode ?? p.client ?? '-') as string}</td>
                     <td className="py-2.5 text-sm text-center">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">{(p.activeDocuments ?? p.activeJobs ?? 0) as number}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">
+                        {(p.activeDocuments ?? p.activeJobs ?? 0) as number}
+                      </span>
                     </td>
                     <td className="py-2.5 text-sm text-center">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold">{(p.pendingMirv ?? 0) as number}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold">
+                        {(p.pendingMirv ?? 0) as number}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -551,7 +641,9 @@ export const AdminDashboard: React.FC = () => {
         <div className="glass-card p-6 rounded-xl">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-lg text-white">Recent Activity</h3>
-            <button className="text-nesma-secondary text-sm hover:text-white font-medium hover:underline">View Full Log</button>
+            <button className="text-nesma-secondary text-sm hover:text-white font-medium hover:underline">
+              View Full Log
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -564,25 +656,34 @@ export const AdminDashboard: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {activities.length > 0 ? activities.map((log) => (
-                  <tr key={log.id} className="hover:bg-white/5 transition-colors">
-                    <td className="py-3 text-sm text-gray-400">{log.time}</td>
-                    <td className="py-3">
-                      <span className={`text-[10px] px-2 py-1 rounded-full font-semibold border ${
-                        log.action.startsWith('MRRV') ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                        log.action.startsWith('MIRV') ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                        log.action.startsWith('JO') ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                        'bg-gray-500/10 text-gray-400 border-gray-500/20'
-                      }`}>
-                        {log.action.split('-')[0]}
-                      </span>
-                    </td>
-                    <td className="py-3 text-sm text-gray-300">{log.details}</td>
-                    <td className="py-3 text-sm text-gray-400">{log.user}</td>
-                  </tr>
-                )) : (
+                {activities.length > 0 ? (
+                  activities.map(log => (
+                    <tr key={log.id} className="hover:bg-white/5 transition-colors">
+                      <td className="py-3 text-sm text-gray-400">{log.time}</td>
+                      <td className="py-3">
+                        <span
+                          className={`text-[10px] px-2 py-1 rounded-full font-semibold border ${
+                            log.action.startsWith('MRRV')
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : log.action.startsWith('MIRV')
+                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                                : log.action.startsWith('JO')
+                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                  : 'bg-gray-500/10 text-gray-400 border-gray-500/20'
+                          }`}
+                        >
+                          {log.action.split('-')[0]}
+                        </span>
+                      </td>
+                      <td className="py-3 text-sm text-gray-300">{log.details}</td>
+                      <td className="py-3 text-sm text-gray-400">{log.user}</td>
+                    </tr>
+                  ))
+                ) : (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-gray-500 text-sm">No recent activity</td>
+                    <td colSpan={4} className="py-8 text-center text-gray-500 text-sm">
+                      No recent activity
+                    </td>
                   </tr>
                 )}
               </tbody>

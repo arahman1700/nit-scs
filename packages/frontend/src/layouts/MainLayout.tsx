@@ -51,7 +51,7 @@ export const MainLayout: React.FC<{
 
   // Build user object from real API data
   const meQuery = useCurrentUser();
-  const meData = meQuery.data?.data as Record<string, string> | undefined;
+  const meData = meQuery.data?.data as { id: string; fullName: string; email: string; department: string } | undefined;
 
   const user: User = meData
     ? {
@@ -90,8 +90,8 @@ export const MainLayout: React.FC<{
       <div className="flex-1 flex flex-col overflow-hidden transition-all duration-300 w-full">
         <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} user={user} role={role} />
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6 relative scroll-smooth">
-          {/* Background texture */}
-          <div className="absolute top-0 left-0 w-full h-full bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none fixed"></div>
+          {/* Background texture (inline SVG noise — no external CDN) */}
+          <div className="absolute top-0 left-0 w-full h-full opacity-20 pointer-events-none fixed bg-[url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E&quot;)]"></div>
           <div className="relative z-10 min-h-full pb-10">{children}</div>
         </main>
       </div>

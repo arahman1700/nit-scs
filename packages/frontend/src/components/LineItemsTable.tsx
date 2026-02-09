@@ -1,12 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, Search, AlertTriangle } from 'lucide-react';
+import React, { Suspense, useState, useMemo } from 'react';
+import { Plus, Trash2, Search, AlertTriangle, ScanLine } from 'lucide-react';
 import type { VoucherLineItem, MaterialCatalogItem } from '@nit-scs/shared/types';
-import { useItems, useUoms } from '@/api/hooks/useMasterData';
-// TODO: Replace with real inventory API query when backend inventory levels endpoint is ready
-const _stubInventory = {
-  getAvailableQty: (_code: string) => 0,
-  getStockStatus: (_code: string) => 'Out of Stock' as const,
-};
+import { useItems, useUoms, useInventory } from '@/api/hooks/useMasterData';
+
+const BarcodeScanner = React.lazy(() => import('@/components/BarcodeScanner'));
 
 interface LineItemsTableProps {
   items: VoucherLineItem[];
@@ -23,10 +20,33 @@ export const LineItemsTable: React.FC<LineItemsTableProps> = ({
   showStockAvailability = false,
   readOnly = false,
 }) => {
-  const { getAvailableQty, getStockStatus } = _stubInventory;
-
   // React Query hooks for master data
   const itemsQuery = useItems({ pageSize: 500 });
+
+  // Inventory levels from real API — keyed by item code for fast lookup
+  const inventoryQuery = useInventory({ pageSize: 1000 });
+  const inventoryLevels = (inventoryQuery.data?.data ?? []) as unknown as Array<Record<string, unknown>>;
+  const inventoryByCode = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const level of inventoryLevels) {
+      const item = level.item as Record<string, unknown> | undefined;
+      const code = (item?.code as string) ?? '';
+      const onHand = (level.qtyOnHand as number) ?? 0;
+      const reserved = (level.qtyReserved as number) ?? 0;
+      const available = onHand - reserved;
+      // Sum across all warehouses for the same item code
+      map.set(code, (map.get(code) ?? 0) + available);
+    }
+    return map;
+  }, [inventoryLevels]);
+
+  const getAvailableQty = (code: string): number => inventoryByCode.get(code) ?? 0;
+  const getStockStatus = (code: string): 'In Stock' | 'Low Stock' | 'Out of Stock' => {
+    const qty = getAvailableQty(code);
+    if (qty <= 0) return 'Out of Stock';
+    if (qty <= 10) return 'Low Stock';
+    return 'In Stock';
+  };
   const MATERIAL_CATALOG = (itemsQuery.data?.data ?? []) as Array<Record<string, unknown>>;
   const uomsQuery = useUoms({ pageSize: 100 });
   const UNIT_OPTIONS = (uomsQuery.data?.data ?? []).map(
@@ -35,21 +55,22 @@ export const LineItemsTable: React.FC<LineItemsTableProps> = ({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showCatalog, setShowCatalog] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   const categories = useMemo(
-    () => ['All', ...new Set(MATERIAL_CATALOG.map((m: any) => m.category))],
+    () => ['All', ...new Set(MATERIAL_CATALOG.map((m: Record<string, unknown>) => m.category as string))],
     [MATERIAL_CATALOG],
   );
 
   const filteredCatalog = useMemo(
     () =>
-      MATERIAL_CATALOG.filter((m: any) => {
+      MATERIAL_CATALOG.filter((m: Record<string, unknown>) => {
         const matchSearch =
           searchTerm === '' ||
-          m.nameAr.includes(searchTerm) ||
-          m.nameEn.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          m.code.toLowerCase().includes(searchTerm.toLowerCase());
+          ((m.nameAr as string) ?? '').includes(searchTerm) ||
+          ((m.nameEn as string) ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+          ((m.code as string) ?? '').toLowerCase().includes(searchTerm.toLowerCase());
         const matchCategory = selectedCategory === 'All' || m.category === selectedCategory;
         return matchSearch && matchCategory;
       }),
@@ -80,6 +101,35 @@ export const LineItemsTable: React.FC<LineItemsTableProps> = ({
     }
     setShowCatalog(false);
     setSearchTerm('');
+  };
+
+  const addItemFromScan = (scannedItem: Record<string, unknown>) => {
+    const code = String(scannedItem.itemCode || scannedItem.code || '');
+    const name = String(scannedItem.itemDescription || scannedItem.nameEn || scannedItem.itemName || '');
+    const unit = String(scannedItem.unit || 'Piece');
+    const price = Number(scannedItem.unitPrice || 0);
+
+    // If item with same code already exists, increment qty
+    const existing = items.find(i => i.itemCode === code);
+    if (existing) {
+      const updated = items.map(i =>
+        i.itemCode === code ? { ...i, quantity: i.quantity + 1, totalPrice: (i.quantity + 1) * i.unitPrice } : i,
+      );
+      onItemsChange(updated);
+    } else {
+      const newItem: VoucherLineItem = {
+        id: `line-${Date.now()}`,
+        itemCode: code,
+        itemName: name,
+        unit,
+        quantity: 1,
+        unitPrice: price,
+        totalPrice: price,
+        condition: 'New',
+      };
+      onItemsChange([...items, newItem]);
+    }
+    setShowScanner(false);
   };
 
   const addBlankItem = () => {
@@ -131,6 +181,14 @@ export const LineItemsTable: React.FC<LineItemsTableProps> = ({
           <div className="flex gap-2">
             <button
               type="button"
+              onClick={() => setShowScanner(true)}
+              className="px-4 py-2 bg-nesma-primary/20 text-nesma-secondary border border-nesma-primary/30 rounded-lg text-sm font-medium hover:bg-nesma-primary/30 transition-all flex items-center gap-2"
+            >
+              <ScanLine size={14} />
+              Scan
+            </button>
+            <button
+              type="button"
               onClick={() => setShowCatalog(!showCatalog)}
               className="px-4 py-2 bg-nesma-primary/20 text-nesma-secondary border border-nesma-primary/30 rounded-lg text-sm font-medium hover:bg-nesma-primary/30 transition-all flex items-center gap-2"
             >
@@ -178,27 +236,27 @@ export const LineItemsTable: React.FC<LineItemsTableProps> = ({
           </div>
 
           <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
-            {filteredCatalog.map((item: any) => (
+            {filteredCatalog.map((item: Record<string, unknown>) => (
               <button
-                key={item.code}
+                key={item.code as string}
                 type="button"
-                onClick={() => addItemFromCatalog(item as MaterialCatalogItem)}
+                onClick={() => addItemFromCatalog(item as unknown as MaterialCatalogItem)}
                 className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-white/5 rounded-lg transition-colors text-left group"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-[10px] font-mono bg-white/5 px-2 py-0.5 rounded text-gray-400 border border-white/5">
-                    {item.code}
+                    {item.code as string}
                   </span>
                   <div>
-                    <span className="text-sm text-gray-200 group-hover:text-white">{item.nameEn}</span>
-                    <span className="text-xs text-gray-500 block">{item.code}</span>
+                    <span className="text-sm text-gray-200 group-hover:text-white">{item.nameEn as string}</span>
+                    <span className="text-xs text-gray-500 block">{item.code as string}</span>
                   </div>
                 </div>
                 <div className="text-right">
                   <span className="text-sm text-nesma-secondary font-medium">
-                    {item.unitPrice?.toLocaleString()} SAR
+                    {(item.unitPrice as number)?.toLocaleString()} SAR
                   </span>
-                  <span className="text-xs text-gray-500 block">/{item.unit}</span>
+                  <span className="text-xs text-gray-500 block">/{item.unit as string}</span>
                 </div>
               </button>
             ))}
@@ -403,9 +461,16 @@ export const LineItemsTable: React.FC<LineItemsTableProps> = ({
       ) : (
         <div className="border-2 border-dashed border-white/10 rounded-xl p-8 text-center">
           <div className="text-gray-500 mb-2">No items added yet</div>
-          <div className="text-xs text-gray-600">Use the buttons above to add items from catalog or manually</div>
+          <div className="text-xs text-gray-600">
+            Use the buttons above to add items from catalog, manually, or by scanning
+          </div>
         </div>
       )}
+
+      {/* Barcode Scanner Modal */}
+      <Suspense fallback={null}>
+        <BarcodeScanner isOpen={showScanner} onClose={() => setShowScanner(false)} onItemFound={addItemFromScan} />
+      </Suspense>
     </div>
   );
 };

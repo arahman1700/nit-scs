@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
 import { KpiCard } from './KpiCard';
 import { SectionTabBar } from './SectionTabBar';
+import { RouteErrorBoundary } from './RouteErrorBoundary';
 import type { KpiCardProps } from './KpiCard';
 import type { TabDef } from './SectionTabBar';
 
@@ -44,10 +45,13 @@ export const SectionLandingPage: React.FC<SectionLandingPageProps> = ({
   const [localTab, setLocalTab] = useState(defaultTab || tabs[0]?.key || '');
   const activeTab = paramTab || localTab;
 
-  const handleTabChange = useCallback((key: string) => {
-    setLocalTab(key);
-    setSearchParams({ tab: key }, { replace: true });
-  }, [setSearchParams]);
+  const handleTabChange = useCallback(
+    (key: string) => {
+      setLocalTab(key);
+      setSearchParams({ tab: key }, { replace: true });
+    },
+    [setSearchParams],
+  );
 
   const hasActions = quickActions && quickActions.length > 0;
 
@@ -93,19 +97,15 @@ export const SectionLandingPage: React.FC<SectionLandingPageProps> = ({
       </div>
 
       {/* Tab Bar */}
-      <SectionTabBar
-        tabs={tabs}
-        activeTab={activeTab}
-        onChange={handleTabChange}
-      />
+      <SectionTabBar tabs={tabs} activeTab={activeTab} onChange={handleTabChange} />
 
       {/* Tab Content */}
       <div className="min-h-[400px]">
-        {children[activeTab] || (
-          <div className="glass-card p-12 rounded-xl text-center text-gray-500">
-            Select a tab to view content
-          </div>
-        )}
+        <RouteErrorBoundary key={activeTab} label={tabs.find(t => t.key === activeTab)?.label}>
+          {children[activeTab] || (
+            <div className="glass-card p-12 rounded-xl text-center text-gray-500">Select a tab to view content</div>
+          )}
+        </RouteErrorBoundary>
       </div>
 
       {/* Mobile FAB — floating action button for quick actions */}
@@ -121,7 +121,10 @@ export const SectionLandingPage: React.FC<SectionLandingPageProps> = ({
                   return (
                     <button
                       key={i}
-                      onClick={() => { setFabOpen(false); action.onClick(); }}
+                      onClick={() => {
+                        setFabOpen(false);
+                        action.onClick();
+                      }}
                       className="flex items-center gap-2 px-4 py-2.5 bg-[#0a1628] border border-white/10 rounded-xl text-sm text-white shadow-xl animate-fade-in whitespace-nowrap"
                     >
                       <ActionIcon size={16} className="text-nesma-secondary" />
@@ -136,9 +139,7 @@ export const SectionLandingPage: React.FC<SectionLandingPageProps> = ({
           <button
             onClick={() => setFabOpen(f => !f)}
             className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${
-              fabOpen
-                ? 'bg-white/10 border border-white/20 rotate-45'
-                : 'bg-nesma-primary shadow-nesma-primary/30'
+              fabOpen ? 'bg-white/10 border border-white/20 rotate-45' : 'bg-nesma-primary shadow-nesma-primary/30'
             }`}
           >
             {fabOpen ? <X size={22} className="text-white" /> : <Plus size={22} className="text-white" />}

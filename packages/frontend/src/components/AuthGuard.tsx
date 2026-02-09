@@ -5,6 +5,7 @@ import { useCurrentUser } from '@/api/hooks/useAuth';
 import { connectSocket, disconnectSocket } from '@/socket/client';
 import { MainLayout } from '@/layouts/MainLayout';
 import { AppRouteDefinitions } from '@/routes';
+import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 
 const LoginPage = React.lazy(() => import('@/pages/LoginPage').then(m => ({ default: m.LoginPage })));
 
@@ -73,17 +74,21 @@ export const AuthGuard: React.FC = () => {
 
   if (!isAuthenticated) {
     return (
-      <Suspense fallback={<PageLoader />}>
-        <LoginPage onLogin={handleLogin} />
-      </Suspense>
+      <RouteErrorBoundary label="Login">
+        <Suspense fallback={<PageLoader />}>
+          <LoginPage onLogin={handleLogin} />
+        </Suspense>
+      </RouteErrorBoundary>
     );
   }
 
   return (
     <MainLayout role={currentRole} setRole={setCurrentRole} onLogout={handleLogout}>
-      <Suspense fallback={<PageLoader />}>
-        <AppRouteDefinitions currentRole={currentRole} />
-      </Suspense>
+      <RouteErrorBoundary label="Page">
+        <Suspense fallback={<PageLoader />}>
+          <AppRouteDefinitions currentRole={currentRole} />
+        </Suspense>
+      </RouteErrorBoundary>
     </MainLayout>
   );
 };

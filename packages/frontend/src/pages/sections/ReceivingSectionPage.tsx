@@ -2,27 +2,10 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, ArrowDownCircle, Ship, ClipboardCheck, Plus } from 'lucide-react';
 import { SectionLandingPage } from '@/components/SectionLandingPage';
+import { StatusBadge } from '@/components/StatusBadge';
 import type { KpiCardProps } from '@/components/KpiCard';
 import type { TabDef } from '@/components/SectionTabBar';
-import {
-  useMrrvList, useShipments, useRfimList,
-  useCustomsClearances, useGatePasses,
-} from '@/api/hooks';
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    Draft: 'bg-gray-500/20 text-gray-400', Pending: 'bg-amber-500/20 text-amber-400',
-    Approved: 'bg-emerald-500/20 text-emerald-400', Inspected: 'bg-blue-500/20 text-blue-400',
-    Rejected: 'bg-red-500/20 text-red-400', 'In Transit': 'bg-blue-500/20 text-blue-400',
-    Delivered: 'bg-emerald-500/20 text-emerald-400', Cleared: 'bg-emerald-500/20 text-emerald-400',
-    Active: 'bg-emerald-500/20 text-emerald-400', Completed: 'bg-emerald-500/20 text-emerald-400',
-  };
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${colors[status] || 'bg-white/10 text-gray-400'}`}>
-      {status}
-    </span>
-  );
-}
+import { useMrrvList, useShipments, useRfimList, useCustomsClearances, useGatePasses } from '@/api/hooks';
 
 export const ReceivingSectionPage: React.FC = () => {
   const navigate = useNavigate();
@@ -74,7 +57,12 @@ export const ReceivingSectionPage: React.FC = () => {
       quickActions={[
         { label: 'New Receipt (MRRV)', icon: ArrowDownCircle, onClick: () => navigate('/admin/forms/mrrv') },
         { label: 'New Shipment', icon: Ship, onClick: () => navigate('/admin/forms/shipment'), variant: 'secondary' },
-        { label: 'Customs Clearance', icon: Plus, onClick: () => navigate('/admin/forms/customs'), variant: 'secondary' },
+        {
+          label: 'Customs Clearance',
+          icon: Plus,
+          onClick: () => navigate('/admin/forms/customs'),
+          variant: 'secondary',
+        },
       ]}
       children={{
         overview: (
@@ -92,23 +80,50 @@ export const ReceivingSectionPage: React.FC = () => {
             <div className="glass-card rounded-2xl overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-white/10">
                 <h3 className="text-white font-semibold">Recent MRRV Queue</h3>
-                <button onClick={() => navigate('/admin/receiving/mrrv')} className="text-nesma-secondary text-xs hover:underline">View All</button>
+                <button
+                  onClick={() => navigate('/admin/receiving/mrrv')}
+                  className="text-nesma-secondary text-xs hover:underline"
+                >
+                  View All
+                </button>
               </div>
               <table className="w-full">
-                <thead><tr className="border-b border-white/10">
-                  {['Document #', 'Supplier', 'Warehouse', 'Date', 'Status'].map(h => <th key={h} className="text-nesma-secondary text-xs uppercase tracking-wider text-left px-4 py-3">{h}</th>)}
-                </tr></thead>
+                <thead>
+                  <tr className="border-b border-white/10">
+                    {['Document #', 'Supplier', 'Warehouse', 'Date', 'Status'].map(h => (
+                      <th key={h} className="text-nesma-secondary text-xs uppercase tracking-wider text-left px-4 py-3">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody>
                   {mrrvRows.slice(0, 10).map(r => (
                     <tr key={r.id as string} className="border-b border-white/5 hover:bg-white/5">
-                      <td className="px-4 py-3 text-sm text-gray-300">{(r.documentNumber as string) ?? (r.id as string).slice(0, 8)}</td>
-                      <td className="px-4 py-3 text-sm text-white">{(r.supplierName as string) ?? (r.supplier as string) ?? '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-400">{(r.warehouseName as string) ?? (r.warehouse as string) ?? '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-400">{(r.receivedDate as string) ?? (r.createdAt as string)?.slice(0, 10) ?? '-'}</td>
-                      <td className="px-4 py-3"><StatusBadge status={(r.status as string) ?? 'Draft'} /></td>
+                      <td className="px-4 py-3 text-sm text-gray-300">
+                        {(r.documentNumber as string) ?? (r.id as string).slice(0, 8)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-white">
+                        {(r.supplierName as string) ?? (r.supplier as string) ?? '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-400">
+                        {(r.warehouseName as string) ?? (r.warehouse as string) ?? '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-400">
+                        {(r.receivedDate as string) ?? (r.createdAt as string)?.slice(0, 10) ?? '-'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={(r.status as string) ?? 'Draft'} />
+                      </td>
                     </tr>
                   ))}
-                  {mrrvRows.length === 0 && <tr><td colSpan={5} className="text-center text-gray-500 py-8">No receipts</td></tr>}
+                  {mrrvRows.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="text-center text-gray-500 py-8">
+                        No receipts
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -119,26 +134,56 @@ export const ReceivingSectionPage: React.FC = () => {
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h3 className="text-white font-semibold">Material Receiving Report Vouchers</h3>
               <div className="flex gap-3">
-                <button onClick={() => navigate('/admin/forms/mrrv')} className="text-nesma-secondary text-xs hover:underline">+ Create New</button>
-                <button onClick={() => navigate('/admin/receiving/mrrv')} className="text-nesma-secondary text-xs hover:underline">View All</button>
+                <button
+                  onClick={() => navigate('/admin/forms/mrrv')}
+                  className="text-nesma-secondary text-xs hover:underline"
+                >
+                  + Create New
+                </button>
+                <button
+                  onClick={() => navigate('/admin/receiving/mrrv')}
+                  className="text-nesma-secondary text-xs hover:underline"
+                >
+                  View All
+                </button>
               </div>
             </div>
             <table className="w-full">
-              <thead><tr className="border-b border-white/10">
-                {['Document #', 'Supplier', 'Date', 'Warehouse', 'Value', 'Status'].map(h => <th key={h} className="text-nesma-secondary text-xs uppercase tracking-wider text-left px-4 py-3">{h}</th>)}
-              </tr></thead>
+              <thead>
+                <tr className="border-b border-white/10">
+                  {['Document #', 'Supplier', 'Date', 'Warehouse', 'Value', 'Status'].map(h => (
+                    <th key={h} className="text-nesma-secondary text-xs uppercase tracking-wider text-left px-4 py-3">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {mrrvRows.map(r => (
                   <tr key={r.id as string} className="border-b border-white/5 hover:bg-white/5">
-                    <td className="px-4 py-3 text-sm text-gray-300">{(r.documentNumber as string) ?? (r.id as string).slice(0, 8)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300">
+                      {(r.documentNumber as string) ?? (r.id as string).slice(0, 8)}
+                    </td>
                     <td className="px-4 py-3 text-sm text-white">{(r.supplierName as string) ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400">{(r.receivedDate as string) ?? (r.createdAt as string)?.slice(0, 10) ?? '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-400">
+                      {(r.receivedDate as string) ?? (r.createdAt as string)?.slice(0, 10) ?? '-'}
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-400">{(r.warehouseName as string) ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm text-white">{((r.totalValue as number) ?? 0).toLocaleString()} SAR</td>
-                    <td className="px-4 py-3"><StatusBadge status={(r.status as string) ?? 'Draft'} /></td>
+                    <td className="px-4 py-3 text-sm text-white">
+                      {((r.totalValue as number) ?? 0).toLocaleString()} SAR
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={(r.status as string) ?? 'Draft'} />
+                    </td>
                   </tr>
                 ))}
-                {mrrvRows.length === 0 && <tr><td colSpan={6} className="text-center text-gray-500 py-8">No MRRV records</td></tr>}
+                {mrrvRows.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center text-gray-500 py-8">
+                      No MRRV records
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -148,26 +193,54 @@ export const ReceivingSectionPage: React.FC = () => {
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h3 className="text-white font-semibold">Shipments</h3>
               <div className="flex gap-3">
-                <button onClick={() => navigate('/admin/forms/shipment')} className="text-nesma-secondary text-xs hover:underline">+ Create New</button>
-                <button onClick={() => navigate('/admin/receiving/shipments')} className="text-nesma-secondary text-xs hover:underline">View All</button>
+                <button
+                  onClick={() => navigate('/admin/forms/shipment')}
+                  className="text-nesma-secondary text-xs hover:underline"
+                >
+                  + Create New
+                </button>
+                <button
+                  onClick={() => navigate('/admin/receiving/shipments')}
+                  className="text-nesma-secondary text-xs hover:underline"
+                >
+                  View All
+                </button>
               </div>
             </div>
             <table className="w-full">
-              <thead><tr className="border-b border-white/10">
-                {['Document #', 'Supplier', 'ETD', 'ETA', 'Port', 'Status'].map(h => <th key={h} className="text-nesma-secondary text-xs uppercase tracking-wider text-left px-4 py-3">{h}</th>)}
-              </tr></thead>
+              <thead>
+                <tr className="border-b border-white/10">
+                  {['Document #', 'Supplier', 'ETD', 'ETA', 'Port', 'Status'].map(h => (
+                    <th key={h} className="text-nesma-secondary text-xs uppercase tracking-wider text-left px-4 py-3">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {shipRows.map(r => (
                   <tr key={r.id as string} className="border-b border-white/5 hover:bg-white/5">
-                    <td className="px-4 py-3 text-sm text-gray-300">{(r.documentNumber as string) ?? (r.id as string).slice(0, 8)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300">
+                      {(r.documentNumber as string) ?? (r.id as string).slice(0, 8)}
+                    </td>
                     <td className="px-4 py-3 text-sm text-white">{(r.supplierName as string) ?? '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-400">{(r.etd as string) ?? '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-400">{(r.eta as string) ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400">{(r.portName as string) ?? (r.port as string) ?? '-'}</td>
-                    <td className="px-4 py-3"><StatusBadge status={(r.status as string) ?? 'Pending'} /></td>
+                    <td className="px-4 py-3 text-sm text-gray-400">
+                      {(r.portName as string) ?? (r.port as string) ?? '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={(r.status as string) ?? 'Pending'} />
+                    </td>
                   </tr>
                 ))}
-                {shipRows.length === 0 && <tr><td colSpan={6} className="text-center text-gray-500 py-8">No shipments</td></tr>}
+                {shipRows.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center text-gray-500 py-8">
+                      No shipments
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -177,25 +250,51 @@ export const ReceivingSectionPage: React.FC = () => {
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h3 className="text-white font-semibold">Customs Clearances</h3>
               <div className="flex gap-3">
-                <button onClick={() => navigate('/admin/forms/customs')} className="text-nesma-secondary text-xs hover:underline">+ Create New</button>
-                <button onClick={() => navigate('/admin/receiving/customs')} className="text-nesma-secondary text-xs hover:underline">View All</button>
+                <button
+                  onClick={() => navigate('/admin/forms/customs')}
+                  className="text-nesma-secondary text-xs hover:underline"
+                >
+                  + Create New
+                </button>
+                <button
+                  onClick={() => navigate('/admin/receiving/customs')}
+                  className="text-nesma-secondary text-xs hover:underline"
+                >
+                  View All
+                </button>
               </div>
             </div>
             <table className="w-full">
-              <thead><tr className="border-b border-white/10">
-                {['Document #', 'Shipment', 'Supplier', 'Port', 'Status'].map(h => <th key={h} className="text-nesma-secondary text-xs uppercase tracking-wider text-left px-4 py-3">{h}</th>)}
-              </tr></thead>
+              <thead>
+                <tr className="border-b border-white/10">
+                  {['Document #', 'Shipment', 'Supplier', 'Port', 'Status'].map(h => (
+                    <th key={h} className="text-nesma-secondary text-xs uppercase tracking-wider text-left px-4 py-3">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {customsRows.map(r => (
                   <tr key={r.id as string} className="border-b border-white/5 hover:bg-white/5">
-                    <td className="px-4 py-3 text-sm text-gray-300">{(r.documentNumber as string) ?? (r.id as string).slice(0, 8)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300">
+                      {(r.documentNumber as string) ?? (r.id as string).slice(0, 8)}
+                    </td>
                     <td className="px-4 py-3 text-sm text-white">{(r.shipmentNumber as string) ?? '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-400">{(r.supplierName as string) ?? '-'}</td>
                     <td className="px-4 py-3 text-sm text-gray-400">{(r.portName as string) ?? '-'}</td>
-                    <td className="px-4 py-3"><StatusBadge status={(r.status as string) ?? 'Pending'} /></td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={(r.status as string) ?? 'Pending'} />
+                    </td>
                   </tr>
                 ))}
-                {customsRows.length === 0 && <tr><td colSpan={5} className="text-center text-gray-500 py-8">No customs records</td></tr>}
+                {customsRows.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="text-center text-gray-500 py-8">
+                      No customs records
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -204,24 +303,49 @@ export const ReceivingSectionPage: React.FC = () => {
           <div className="glass-card rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <h3 className="text-white font-semibold">Gate Passes</h3>
-              <button onClick={() => navigate('/admin/receiving/gate-pass')} className="text-nesma-secondary text-xs hover:underline">View All</button>
+              <button
+                onClick={() => navigate('/admin/receiving/gate-pass')}
+                className="text-nesma-secondary text-xs hover:underline"
+              >
+                View All
+              </button>
             </div>
             <table className="w-full">
-              <thead><tr className="border-b border-white/10">
-                {['Document #', 'Type', 'Date', 'Warehouse', 'Vehicle', 'Status'].map(h => <th key={h} className="text-nesma-secondary text-xs uppercase tracking-wider text-left px-4 py-3">{h}</th>)}
-              </tr></thead>
+              <thead>
+                <tr className="border-b border-white/10">
+                  {['Document #', 'Type', 'Date', 'Warehouse', 'Vehicle', 'Status'].map(h => (
+                    <th key={h} className="text-nesma-secondary text-xs uppercase tracking-wider text-left px-4 py-3">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {gpRows.map(r => (
                   <tr key={r.id as string} className="border-b border-white/5 hover:bg-white/5">
-                    <td className="px-4 py-3 text-sm text-gray-300">{(r.documentNumber as string) ?? (r.id as string).slice(0, 8)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-300">
+                      {(r.documentNumber as string) ?? (r.id as string).slice(0, 8)}
+                    </td>
                     <td className="px-4 py-3 text-sm text-white">{(r.type as string) ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400">{(r.date as string) ?? (r.createdAt as string)?.slice(0, 10) ?? '-'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-400">
+                      {(r.date as string) ?? (r.createdAt as string)?.slice(0, 10) ?? '-'}
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-400">{(r.warehouseName as string) ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400">{(r.vehiclePlate as string) ?? (r.vehicle as string) ?? '-'}</td>
-                    <td className="px-4 py-3"><StatusBadge status={(r.status as string) ?? 'Pending'} /></td>
+                    <td className="px-4 py-3 text-sm text-gray-400">
+                      {(r.vehiclePlate as string) ?? (r.vehicle as string) ?? '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={(r.status as string) ?? 'Pending'} />
+                    </td>
                   </tr>
                 ))}
-                {gpRows.length === 0 && <tr><td colSpan={6} className="text-center text-gray-500 py-8">No gate passes</td></tr>}
+                {gpRows.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center text-gray-500 py-8">
+                      No gate passes
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

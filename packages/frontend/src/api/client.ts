@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_URL,
@@ -8,7 +8,7 @@ export const apiClient = axios.create({
 });
 
 // Request interceptor: attach JWT token
-apiClient.interceptors.request.use((config) => {
+apiClient.interceptors.request.use(config => {
   const token = localStorage.getItem('nit_scs_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -18,8 +18,8 @@ apiClient.interceptors.request.use((config) => {
 
 // Response interceptor: handle 401 (expired token)
 apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
+  response => response,
+  async error => {
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {

@@ -8,9 +8,11 @@ export const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     case 'Delivered':
     case 'Completed':
     case 'Active':
+    case 'Cleared':
     case 'In Stock':
     case 'Pass':
     case 'Resolved':
+    case 'On Track':
       colorClass = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
       break;
     case 'Pending':
@@ -21,6 +23,7 @@ export const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     case 'Low Stock':
     case 'Conditional':
     case 'Open':
+    case 'At Risk':
       colorClass = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
       break;
     case 'Rejected':
