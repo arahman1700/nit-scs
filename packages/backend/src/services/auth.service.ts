@@ -217,7 +217,8 @@ export async function changePassword(userId: string, currentPassword: string, ne
 const MAX_RESET_CODES_PER_HOUR = 3;
 
 export async function forgotPassword(email: string): Promise<void> {
-  const employee = await prisma.employee.findUnique({ where: { email } });
+  const normalizedEmail = email.toLowerCase();
+  const employee = await prisma.employee.findUnique({ where: { email: normalizedEmail } });
 
   // Generate code regardless (don't reveal user existence)
   const code = String(crypto.randomInt(100000, 999999));
@@ -228,7 +229,7 @@ export async function forgotPassword(email: string): Promise<void> {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentCount = await prisma.passwordResetCode.count({
       where: {
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         createdAt: { gte: oneHourAgo },
       },
     });
@@ -240,7 +241,7 @@ export async function forgotPassword(email: string): Promise<void> {
     // Store in database
     await prisma.passwordResetCode.create({
       data: {
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         code,
         expiresAt,
       },
