@@ -35,6 +35,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared package
+        run: pnpm --filter @nit-scs/shared run build
+
+      - name: Generate Prisma client
+        run: pnpm --filter @nit-scs/backend prisma:generate
+
       - name: Lint
         run: pnpm run lint
         continue-on-error: true
