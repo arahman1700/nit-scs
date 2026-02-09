@@ -31,6 +31,8 @@ import { EmptyState } from '@/components/EmptyState';
 import { DocumentActions } from '@/components/DocumentActions';
 import { DocumentComments } from '@/components/DocumentComments';
 import { ImportDialog } from '@/components/ImportDialog';
+import { SmartGrid, ViewSwitcher } from '@/components/smart-grid';
+import type { ViewMode } from '@/components/smart-grid';
 const BarcodeScanner = React.lazy(() => import('@/components/BarcodeScanner'));
 import { toast } from '@/components/Toaster';
 import { generateDocumentPdf, buildPdfOptions } from '@/utils/pdfExport';
@@ -311,7 +313,7 @@ export const AdminResourceList: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<string>('');
   const [importOpen, setImportOpen] = useState(false);
@@ -718,20 +720,7 @@ export const AdminResourceList: React.FC = () => {
                     : ''}
                 </span>
               </button>
-              <div className="flex bg-black/20 border border-white/10 rounded-lg p-0.5">
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-all ${viewMode === 'list' ? 'bg-white/10 text-white shadow-sm border border-white/10' : 'text-gray-400 hover:text-white'}`}
-                >
-                  <List size={14} /> List
-                </button>
-                <button
-                  onClick={() => setViewMode('card')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-all ${viewMode === 'card' ? 'bg-white/10 text-white shadow-sm border border-white/10' : 'text-gray-400 hover:text-white'}`}
-                >
-                  <LayoutGrid size={14} /> Card
-                </button>
-              </div>
+              <ViewSwitcher mode={viewMode} onChange={setViewMode} availableModes={['grid', 'list', 'card']} />
             </div>
           </div>
 
@@ -828,6 +817,22 @@ export const AdminResourceList: React.FC = () => {
               ) : (
                 <EmptyState />
               )}
+            </div>
+          ) : viewMode === 'grid' ? (
+            /* AG Grid View */
+            <div className="px-2">
+              <SmartGrid
+                columns={config.columns}
+                rowData={apiData}
+                loading={query.isLoading}
+                isDocument={isDocument}
+                selectedIds={selectedIds}
+                onSortChanged={(key, dir) => {
+                  setSortKey(key);
+                  setSortDir(dir);
+                }}
+                onRowClicked={setSelectedRow}
+              />
             </div>
           ) : (
             /* Table View */
